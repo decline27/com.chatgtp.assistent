@@ -1,0 +1,35 @@
+name: Build Homey App
+
+on:
+  push:
+    branches: [ main, master, stable ]
+  pull_request:
+    branches: [ main, master, stable ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build App
+        run: |
+          npm install -g homey
+          homey app build
+        
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: homey-app-build
+          path: build/
+          retention-days: 7
