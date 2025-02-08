@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ChatGPT Assistant Settings</title>
+    <script type="text/javascript" src="/homey.js" data-origin="settings"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #0066cc;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+        input[type="password"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0052a3;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ChatGPT Assistant Settings</h1>
+        <div class="form-group">
+            <label for="telegramBotToken">Telegram Bot Token</label>
+            <input type="password" id="telegramBotToken" placeholder="Enter your Telegram Bot Token">
+        </div>
+        <div class="form-group">
+            <label for="openaiApiKey">OpenAI API Key</label>
+            <input type="password" id="openaiApiKey" placeholder="Enter your OpenAI API Key">
+        </div>
+        <button onclick="saveSettings()">Save Settings</button>
+        <div id="statusMessage" class="status"></div>
+    </div>
+
+    <script type="text/javascript">
+        let homeyInstance;
+
+        function onHomeyReady(Homey) {
+            homeyInstance = Homey;
+
+            // Load existing settings
+            Homey.get('telegramBotToken', function(err, token) {
+                if (!err && token) {
+                    document.getElementById('telegramBotToken').value = token;
+                }
+            });
+
+            Homey.get('openaiApiKey', function(err, key) {
+                if (!err && key) {
+                    document.getElementById('openaiApiKey').value = key;
+                }
+            });
+
+            Homey.ready();
+        }
+
+        function saveSettings() {
+            const telegramToken = document.getElementById('telegramBotToken').value;
+            const openaiKey = document.getElementById('openaiApiKey').value;
+            const statusElement = document.getElementById('statusMessage');
+
+            // Validate inputs
+            if (!telegramToken || !openaiKey) {
+                showStatus('Please fill in both API keys', false);
+                return;
+            }
+
+            // Save settings
+            homeyInstance.set('telegramBotToken', telegramToken, function(err) {
+                if (err) {
+                    showStatus('Error saving Telegram token: ' + err.message, false);
+                    return;
+                }
+
+                homeyInstance.set('openaiApiKey', openaiKey, function(err) {
+                    if (err) {
+                        showStatus('Error saving OpenAI key: ' + err.message, false);
+                        return;
+                    }
+
+                    showStatus('Settings saved successfully!', true);
+                });
+            });
+        }
+
+        function showStatus(message, isSuccess) {
+            const statusElement = document.getElementById('statusMessage');
+            statusElement.textContent = message;
+            statusElement.style.display = 'block';
+            statusElement.className = 'status ' + (isSuccess ? 'success' : 'error');
+
+            // Hide the message after 3 seconds
+            setTimeout(() => {
+                statusElement.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
