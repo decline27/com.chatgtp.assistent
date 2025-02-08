@@ -2,9 +2,9 @@ name: Validate Homey App
 
 on:
   push:
-    branches: [ main, master, stable ]
+    branches: [ main, master, stable, development ]
   pull_request:
-    branches: [ main, master, stable ]
+    branches: [ main, master, stable, development ]
 
 jobs:
   validate:
