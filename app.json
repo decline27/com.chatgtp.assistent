@@ -4,16 +4,22 @@
   "version": "1.0.0",
   "compatibility": ">=8.1.1",
   "sdk": 3,
-  "platforms": ["local"],
+  "platforms": [
+    "local"
+  ],
   "name": {
     "en": "Homey Assistent"
   },
   "description": {
     "en": "This is a Homey assistant powered by ChatGPT."
   },
-  "category": ["tools"],
+  "category": [
+    "tools"
+  ],
   "brandColor": "#FE9C21",
-  "permissions": ["homey:manager:api"],
+  "permissions": [
+    "homey:manager:api"
+  ],
   "settings": [
     {
       "type": "group",
@@ -56,7 +62,13 @@
     "email": "decline27@gmail.com"
   },
   "tags": {
-    "en": ["chatgpt", "assistant", "homey", "automation", "tools"]
+    "en": [
+      "chatgpt",
+      "assistant",
+      "homey",
+      "automation",
+      "tools"
+    ]
   },
   "bugs": {
     "url": "https://github.com/decline27/com.chatgtp.assistent/issues"
@@ -67,28 +79,6 @@
       "paypal": {
         "username": "yourpaypalusername"
       }
-    }
-  },
-  "api": {
-    "ping": {
-      "method": "GET",
-      "path": "/ping"
-    },
-    "getDevices": {
-      "method": "GET",
-      "path": "/devices"
-    },
-    "exposeDevice": {
-      "method": "PUT",
-      "path": "/devices/:id"
-    },
-    "unexposeDevice": {
-      "method": "DELETE",
-      "path": "/devices/:id"
-    },
-    "reset": {
-      "method": "POST",
-      "path": "/reset"
     }
   }
 }
