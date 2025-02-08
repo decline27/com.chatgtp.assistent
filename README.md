@@ -80,7 +80,7 @@ Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTIN
 ## Support
 
 For support:
-- Create an issue in our [GitHub repository](https://github.com/yourusername/yourapp/issues)
+- Create an issue in our [GitHub repository](https://github.com/decline27/com.chatgtp.assistent/issues)
 - Contact the developer at decline27@gmail.com
 
 ## License
