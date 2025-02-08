@@ -1,47 +1,50 @@
-name: Validate Homey App
-
+name: Update Homey App Version
 on:
-  push:
-    branches: [ main, master, stable, development ]
-  pull_request:
-    branches: [ main, master, stable, development ]
+  workflow_dispatch:
+    inputs:
+      version:
+        type: choice
+        description: Version
+        required: true
+        default: patch
+        options:
+          - major
+          - minor
+          - patch
+      changelog:
+        type: string
+        description: Changelog
+        required: true
+
+# Needed in order to push the commit and create a release
+permissions:
+  contents: write
 
 jobs:
-  validate:
+  main:
+    name: Update Homey App Version
     runs-on: ubuntu-latest
-    
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+
+      - name: Update Homey App Version
+        uses: athombv/github-action-homey-app-version@master
+        id: update_app_version
         with:
-          node-version: '16'
-          cache: 'npm'
-          
-      - name: Install Homey CLI
-        run: npm install -g homey
-        
-      - name: Install dependencies
-        run: npm ci
-        
-      - name: Run ESLint
-        run: npm run lint
-        
-      - name: Validate Homey App
-        run: homey app validate
-        
-      - name: Check App JSON
-        run: homey app validate --app-json
-        
-      - name: Check App Dependencies
-        run: homey app validate --dependencies
-        
-      - name: Build App
-        run: homey app build
-        
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: homey-app
-          path: build/
+          version: ${{ inputs.version }}
+          changelog: ${{ inputs.changelog }}
+
+      - name: Commit & Push
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git commit -m "Update Homey App Version to v${{ steps.update_app_version.outputs.version }}"
+          git tag "v${{ steps.update_app_version.outputs.version }}"
+
+          git push origin HEAD --tags
+          gh release create "v${{ steps.update_app_version.outputs.version }}" -t "v${{ steps.update_app_version.outputs.version }}" --notes "" --generate-notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
