@@ -68,8 +68,5 @@
       }
     }
   },
-  "support": {
-    "email": "decline27@gmail.com",
-    "website": "https://github.com/decline27/com.chatgtp.assistent"
-  }
+  "support": "https://github.com/decline27/com.chatgtp.assistent/issues"
 }
