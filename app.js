@@ -13,7 +13,7 @@ const { initChatGPT, parseCommand } = require('./modules/chatgpt');
 const { HomeyAPIV3 } = require('homey-api');
 
 /**
- * Helper: Download a file using node-fetch.
+ * Helper: Download a file using native https.
  * @param {string} fileUrl - The URL to download.
  * @param {string} outputPath - The local file path to write to.
  */
@@ -36,6 +36,22 @@ async function downloadFile(fileUrl, outputPath) {
       reject(err);
     });
   });
+}
+
+/**
+ * Helper function that returns an array of capability keys for a device.
+ * It supports both the older 'capabilities' array and the newer 'capabilitiesObj' object.
+ *
+ * @param {object} device - The device object.
+ * @returns {Array} Array of capability keys.
+ */
+function getCapabilityKeys(device) {
+  if (device.capabilities && Array.isArray(device.capabilities)) {
+    return device.capabilities;
+  } else if (device.capabilitiesObj && typeof device.capabilitiesObj === 'object') {
+    return Object.keys(device.capabilitiesObj);
+  }
+  return [];
 }
 
 class ChatGPTAssistant extends Homey.App {
@@ -88,9 +104,10 @@ class ChatGPTAssistant extends Homey.App {
   }
 
   /**
-   * Constructs a shortened prompt for ChatGPT that includes a summarized home state.
-   * The summary includes zones (id and name), devices (id, name, zone, and class),
-   * plus a mapping of device classes to common capabilities.
+   * Constructs a prompt for ChatGPT that includes a summarized home state.
+   * The summary includes zones, devices, and a mapping of device classes to common capabilities.
+   * The prompt instructs ChatGPT to output explicit commands (like "turn_on" or "turn_off")
+   * and to only include devices that are applicable.
    */
   async parseCommandWithState(commandText) {
     const homeState = await this.getHomeState();
@@ -114,7 +131,8 @@ class ChatGPTAssistant extends Homey.App {
       "light": {
         "capabilities": ["onoff", "dim", "light_hue", "light_saturation", "light_temperature", "light_mode"],
         "actions": {
-          "onoff": { "type": "boolean", "description": "Turn the light on or off" },
+          "turn_on": { "type": "boolean", "description": "Turn the light on" },
+          "turn_off": { "type": "boolean", "description": "Turn the light off" },
           "dim": { "type": "number", "range": [0, 1], "description": "Set brightness level" },
           "light_hue": { "type": "number", "range": [0, 1], "description": "Set light color hue" },
           "light_saturation": { "type": "number", "range": [0, 1], "description": "Set color saturation" },
@@ -125,7 +143,7 @@ class ChatGPTAssistant extends Homey.App {
       "thermostat": {
         "capabilities": ["target_temperature", "measure_temperature", "thermostat_mode"],
         "actions": {
-          "target_temperature": { "type": "number", "range": [5, 35], "description": "Set target temperature" },
+          "set_temperature": { "type": "number", "range": [5, 35], "description": "Set target temperature" },
           "measure_temperature": { "type": "number", "readable": true, "description": "Current temperature" },
           "thermostat_mode": { "type": "string", "values": ["heat", "cool", "auto"], "description": "Set thermostat mode" }
         }
@@ -143,7 +161,8 @@ class ChatGPTAssistant extends Homey.App {
       "speaker": {
         "capabilities": ["speaker_album", "speaker_artist", "speaker_duration", "speaker_playing", "volume_set", "volume_mute"],
         "actions": {
-          "speaker_playing": { "type": "boolean", "description": "Play/pause playback" },
+          "turn_on": { "type": "boolean", "description": "Start playback" },
+          "turn_off": { "type": "boolean", "description": "Stop playback" },
           "volume_set": { "type": "number", "range": [0, 1], "description": "Set volume level" },
           "volume_mute": { "type": "boolean", "description": "Mute/unmute speaker" }
         }
@@ -151,14 +170,16 @@ class ChatGPTAssistant extends Homey.App {
       "lock": {
         "capabilities": ["locked", "measure_battery"],
         "actions": {
-          "locked": { "type": "boolean", "description": "Lock/unlock device" },
+          "turn_on": { "type": "boolean", "description": "Lock the device" },
+          "turn_off": { "type": "boolean", "description": "Unlock the device" },
           "measure_battery": { "type": "number", "readable": true, "description": "Battery level percentage" }
         }
       },
       "camera": {
         "capabilities": ["onoff", "CMD_START_STREAM", "CMD_SNAPSHOT"],
         "actions": {
-          "onoff": { "type": "boolean", "description": "Turn camera on/off" },
+          "turn_on": { "type": "boolean", "description": "Turn camera on" },
+          "turn_off": { "type": "boolean", "description": "Turn camera off" },
           "CMD_START_STREAM": { "type": "command", "description": "Start video stream" },
           "CMD_SNAPSHOT": { "type": "command", "description": "Take a snapshot" }
         }
@@ -174,7 +195,8 @@ class ChatGPTAssistant extends Homey.App {
       "socket": {
         "capabilities": ["onoff"],
         "actions": {
-          "onoff": { "type": "boolean", "description": "Turn socket on/off" }
+          "turn_on": { "type": "boolean", "description": "Turn socket on" },
+          "turn_off": { "type": "boolean", "description": "Turn socket off" }
         }
       },
       "vacuumcleaner": {
@@ -187,7 +209,8 @@ class ChatGPTAssistant extends Homey.App {
       "evcharger": {
         "capabilities": ["onoff", "charging", "charge_mode", "measure_power", "measure_current"],
         "actions": {
-          "onoff": { "type": "boolean", "description": "Enable/disable charger" },
+          "turn_on": { "type": "boolean", "description": "Enable charger" },
+          "turn_off": { "type": "boolean", "description": "Disable charger" },
           "charging": { "type": "boolean", "description": "Start/stop charging" },
           "charge_mode": { "type": "string", "values": ["fast", "eco", "scheduled"], "description": "Set charging mode" },
           "measure_power": { "type": "number", "readable": true, "description": "Current power usage in watts" },
@@ -197,7 +220,7 @@ class ChatGPTAssistant extends Homey.App {
       "doorbell": {
         "capabilities": ["button", "alarm_generic", "measure_battery", "CMD_SNAPSHOT"],
         "actions": {
-          "button": { "type": "trigger", "description": "Doorbell press event" },
+          "click": { "type": "trigger", "description": "Doorbell press event" },
           "alarm_generic": { "type": "boolean", "description": "Doorbell chime control" },
           "measure_battery": { "type": "number", "readable": true, "description": "Battery level percentage" },
           "CMD_SNAPSHOT": { "type": "command", "description": "Take a snapshot" }
@@ -211,27 +234,18 @@ class ChatGPTAssistant extends Homey.App {
       deviceClassMapping: deviceClassMapping
     };
 
+    // Improved prompt for ChatGPT:
     const prompt = `
-You are a Homey automation expert.
+You are a Homey automation expert. Your task is to convert the following natural language command into valid JSON that instructs Homey to control devices.
+The JSON must follow one of these formats:
+- For an entire room: { "room": "<roomName>", "command": "<action>" }
+- For specific devices: { "device_ids": [ "deviceID1", "deviceID2", ... ], "command": "<action>" }
+Always use explicit commands such as "turn_on" or "turn_off" for on/off actions.
+Only include devices that support the required capabilities (for example, only devices that support on/off control for lights or sockets).
+Ensure the command and parameters match the device capabilities described below.
 Home state summary: ${JSON.stringify(summary)}
-Convert the following natural language command into valid JSON for Homey.
-
-Device Capabilities Guide:
-- Each device type has specific capabilities and actions
-- Some values are read-only (marked as 'readable')
-- Numeric values have specific ranges
-- Some actions require specific value types (boolean, number, string)
-
-Guidelines:
- - For an entire room, output: { "room": "<roomName>", "command": "<action>" }.
- - For specific devices, output: { "device_ids": [ ... ], "command": "<action>" }.
- - Always include a "command" key matching the device's capabilities.
- - Include "parameters" object with appropriate values based on the command.
- - For readable values, use "get" in the command (e.g. "get_temperature").
- - Verify the command and parameters match the device's capabilities.
-
-Output only valid JSON.
 Command: "${commandText}"
+Output only valid JSON.
 `;
     this.log("Processing prompt for:", commandText);
     return await this.chatgpt.parseCommand(prompt);
@@ -306,15 +320,46 @@ Command: "${commandText}"
   /**
    * Executes a JSON command returned by ChatGPT.
    * Supports:
-   * - Room commands (with "room"): updates all devices in that room that support "onoff"
-   *   or have virtualClass "light".
+   * - Room commands (with "room"): updates all devices in that room that support the intended action.
    * - Multiple device_ids commands.
    * - Single device commands.
+   *
+   * This function now uses a helper (getCapabilityForCommand) that maps a generic command like
+   * "turn_on"/"turn_off" to the actual capability each device supports.
    */
   async executeHomeyCommand(jsonCommand) {
     if (jsonCommand.error) throw new Error(jsonCommand.error);
 
-    // Room command
+    // If ChatGPT returned "onoff", convert it to explicit commands.
+    if (jsonCommand.command === "onoff") {
+      if (jsonCommand.parameters && typeof jsonCommand.parameters.onoff === 'boolean') {
+        jsonCommand.command = jsonCommand.parameters.onoff ? "turn_on" : "turn_off";
+      } else {
+        throw new Error("Invalid parameters for onoff command.");
+      }
+    }
+
+    // Helper: Given a device and a generic command (e.g., "turn_on" or "turn_off"),
+    // determine the actual capability to set based on the device's class and supported capabilities.
+    function getCapabilityForCommand(device, command) {
+      const caps = getCapabilityKeys(device);
+      if (command === "turn_on" || command === "turn_off") {
+        // Prefer the generic onoff capability if available.
+        if (caps.includes("onoff")) return "onoff";
+        // If the device is a speaker, check for speaker_playing.
+        if (device.class === "speaker" && caps.includes("speaker_playing")) return "speaker_playing";
+        // For other device types (spa, car, boiler, etc.), add additional mappings here.
+        return null; // No valid on/off capability found.
+      }
+      // For other commands, if the device supports it, return it.
+      if (caps.includes(command)) return command;
+      return null;
+    }
+
+    // Decide the value to set for on/off commands.
+    const onoffValue = jsonCommand.command === "turn_on" ? true : false;
+
+    // ---------- Room Command Branch ----------
     if (jsonCommand.room) {
       const homeState = await this.getHomeState();
       const zones = homeState.zones;
@@ -324,38 +369,34 @@ Command: "${commandText}"
       if (targetZoneIds.length === 0) throw new Error(`No zone matching "${jsonCommand.room}" found.`);
       const devicesObj = await this.getDevicesMapping();
       const devices = Object.values(devicesObj);
-      // Filter devices in target zones that support "onoff" or have virtualClass "light"
+      
+      // Filter devices that are in the target zones and have a valid capability.
       let targetDevices = devices.filter(device => {
-        const supportsOnOff = Array.isArray(device.capabilities) && device.capabilities.includes('onoff');
-        const isVirtualLight = device.virtualClass &&
-                               typeof device.virtualClass === 'string' &&
-                               device.virtualClass.toLowerCase() === 'light';
-        return targetZoneIds.includes(device.zone) && (supportsOnOff || isVirtualLight);
+        if (!targetZoneIds.includes(device.zone)) return false;
+        return getCapabilityForCommand(device, jsonCommand.command) !== null;
       });
+
       if (targetDevices.length === 0) {
-        throw new Error(`No devices with "onoff" capability or virtual class "light" found in room "${jsonCommand.room}".`);
+        throw new Error(`No devices with required capabilities found in room "${jsonCommand.room}" for command "${jsonCommand.command}".`);
       }
+
       let results = [];
       for (const device of targetDevices) {
         try {
-          if (jsonCommand.command === "turn_off") {
-            await device.setCapabilityValue('onoff', false);
-          } else if (jsonCommand.command === "turn_on") {
-            await device.setCapabilityValue('onoff', true);
-          } else if (jsonCommand.command === "set_temperature" &&
-                     jsonCommand.parameters && jsonCommand.parameters.target_temperature) {
-            await device.setCapabilityValue('target_temperature', jsonCommand.parameters.target_temperature);
-          } else {
-            throw new Error(`Unsupported command: ${jsonCommand.command}`);
+          const cap = getCapabilityForCommand(device, jsonCommand.command);
+          if (!cap) {
+            results.push(`Device ${device.name} (${device.id}) does not support ${jsonCommand.command}.`);
+            continue;
           }
-          results.push(`Device ${device.id} updated.`);
+          await device.setCapabilityValue(cap, onoffValue);
+          results.push(`Device ${device.name} (${device.id}) updated successfully.`);
         } catch (error) {
-          results.push(`Device ${device.id} failed: ${error.message}`);
+          results.push(`Device ${device.name} (${device.id}) failed: ${error.message}`);
         }
       }
       return results.join('\n');
     }
-    // Multiple device_ids command
+    // ---------- Multiple Device IDs Command Branch ----------
     else if (jsonCommand.device_ids) {
       const devicesObj = await this.getDevicesMapping();
       const devices = Object.values(devicesObj);
@@ -367,17 +408,12 @@ Command: "${commandText}"
           continue;
         }
         try {
-          if (jsonCommand.command === "turn_off") {
-            await device.setCapabilityValue('onoff', false);
-          } else if (jsonCommand.command === "turn_on") {
-            await device.setCapabilityValue('onoff', true);
-          } else if (jsonCommand.command === "set_temperature" &&
-                     jsonCommand.parameters && jsonCommand.parameters.target_temperature) {
-            await device.setCapabilityValue('target_temperature', jsonCommand.parameters.target_temperature);
-          } else {
-            results.push(`Unsupported command: ${jsonCommand.command}`);
+          const cap = getCapabilityForCommand(device, jsonCommand.command);
+          if (!cap) {
+            results.push(`Device ${device.name} (${device.id}) does not support ${jsonCommand.command}. Skipping.`);
             continue;
           }
+          await device.setCapabilityValue(cap, onoffValue);
           results.push(`Device ${device.id} updated.`);
         } catch (error) {
           results.push(`Device ${device.id} failed: ${error.message}`);
@@ -385,23 +421,18 @@ Command: "${commandText}"
       }
       return results.join('\n');
     }
-    // Single device command
+    // ---------- Single Device Command Branch ----------
     else if (jsonCommand.device_id) {
       const devicesObj = await this.getDevicesMapping();
       const devices = Object.values(devicesObj);
       const device = devices.find(d => d.id === jsonCommand.device_id);
       if (!device) throw new Error(`Device ${jsonCommand.device_id} not found.`);
       try {
-        if (jsonCommand.command === "turn_off") {
-          await device.setCapabilityValue('onoff', false);
-        } else if (jsonCommand.command === "turn_on") {
-          await device.setCapabilityValue('onoff', true);
-        } else if (jsonCommand.command === "set_temperature" &&
-                   jsonCommand.parameters && jsonCommand.parameters.target_temperature) {
-          await device.setCapabilityValue('target_temperature', jsonCommand.parameters.target_temperature);
-        } else {
-          throw new Error(`Unsupported command: ${jsonCommand.command}`);
+        const cap = getCapabilityForCommand(device, jsonCommand.command);
+        if (!cap) {
+          throw new Error(`Device ${device.name} does not support ${jsonCommand.command}.`);
         }
+        await device.setCapabilityValue(cap, onoffValue);
         return `Device ${jsonCommand.device_id} updated.`;
       } catch (error) {
         throw new Error(`Failed to update device ${jsonCommand.device_id}: ${error.message}`);
@@ -480,7 +511,7 @@ Command: "${commandText}"
               }).on('error', reject);
             });
             
-            // Pass the buffer directly to transcribeVoice (ensure transcribeVoice supports Buffer input)
+            // Transcribe the voice message (ensure transcribeVoice supports Buffer input)
             commandText = await transcribeVoice(buffer);
           } else if (msg.text) {
             commandText = msg.text;
@@ -499,6 +530,7 @@ Command: "${commandText}"
           }
           const resultMessage = await this.executeHomeyCommand(jsonCommand);
           await this.telegram.sendMessage(chatId, `Success: ${resultMessage}`);
+          this.log(`Command executed successfully: ${resultMessage}`);
         } catch (error) {
           this.error("Error processing msg:", error);
           await this.telegram.sendMessage(chatId, `Error: ${error.message}`);
