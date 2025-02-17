@@ -1,18 +1,24 @@
 {
   "id": "com.chatgtp.assistent",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "compatibility": ">=8.1.1",
   "sdk": 3,
-  "platforms": ["local"],
+  "platforms": [
+    "local"
+  ],
   "name": {
     "en": "Homey Assistent"
   },
   "description": {
     "en": "This is a Homey assistant powered by ChatGPT."
   },
-  "category": ["tools"],
+  "category": [
+    "tools"
+  ],
   "brandColor": "#FE9C21",
-  "permissions": ["homey:manager:api"],
+  "permissions": [
+    "homey:manager:api"
+  ],
   "settings": [
     {
       "type": "group",
@@ -55,7 +61,13 @@
     "email": "decline27@gmail.com"
   },
   "tags": {
-    "en": ["chatgpt", "assistant", "homey", "automation", "tools"]
+    "en": [
+      "chatgpt",
+      "assistant",
+      "homey",
+      "automation",
+      "tools"
+    ]
   },
   "bugs": {
     "url": "https://github.com/decline27/com.chatgtp.assistent/issues"
