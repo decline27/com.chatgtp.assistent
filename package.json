@@ -2,15 +2,32 @@
   "name": "com.chatgtp.assistent",
   "version": "1.0.0",
   "scripts": {
-    "lint": "eslint --ext .js --ignore-path .gitignore ."
+    "lint": "eslint --ext .js --ignore-path .gitignore .",
+    "test": "mocha test/**/*.test.js --recursive --timeout 10000",
+    "test:unit": "mocha test/unit/**/*.test.js --recursive --timeout 5000",
+    "test:integration": "mocha test/integration/**/*.test.js --recursive --timeout 15000",
+    "test:watch": "mocha test/**/*.test.js --recursive --watch --timeout 10000",
+    "test:coverage": "nyc mocha test/**/*.test.js --recursive --timeout 10000",
+    "test:regression": "mocha test/regression/**/*.test.js --recursive --timeout 10000",
+    "test:performance": "mocha test/performance/**/*.test.js --recursive --timeout 30000",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:regression",
+    "test:legacy": "node test/multilingual-test.js && node test/command-processing-test.js && node test/multi-command-test.js",
+    "test:status": "node test-status-queries.js",
+    "test:room-matching": "node test-advanced-room-matching.js",
+    "test:auto": "node scripts/test-runner.js",
+    "test:watch-dev": "node scripts/watch-tests.js",
+    "test:comprehensive": "node scripts/test-runner.js unit integration regression performance"
   },
   "devDependencies": {
     "eslint": "^7.32.0",
-    "eslint-config-athom": "^3.1.3"
+    "eslint-config-athom": "^3.1.3",
+    "mocha": "^10.2.0",
+    "chai": "^4.3.10",
+    "sinon": "^17.0.1",
+    "nyc": "^15.1.0",
+    "chai-as-promised": "^7.1.1"
   },
   "dependencies": {
-    "form-data": "^4.0.1",
-    "homey-api": "^3.6.8",
-    "node-fetch": "^3.3.2"
+    "homey-api": "^3.6.8"
   }
 }

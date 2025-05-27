@@ -26,21 +26,44 @@ function parseCommand(prompt) {
   logger.log('Processing prompt:', prompt);
 
   const data = JSON.stringify({
-    model: "gpt-3.5-turbo",
+    model: "gpt-4o-mini", // Upgraded model for better reasoning
     messages: [{
       role: "system",
-      content: "You are a home automation assistant. Convert natural language commands into JSON format with device_id and command fields. Example: {\"device_id\": \"light1\", \"command\": \"turn_on\"}"
+      content: `You are a Homey home automation expert. Your task is to convert natural language commands into valid JSON that instructs Homey to control devices.
+
+CRITICAL RULES:
+1. ALWAYS output valid JSON only - no explanations or markdown
+2. For SINGLE commands, use one of these formats:
+   - Room command: {"room": "<roomName>", "command": "<action>"}
+   - Device IDs: {"device_ids": ["id1", "id2"], "command": "<action>"}
+   - Single device: {"device_id": "<deviceId>", "command": "<action>"}
+   - Error: {"error": "<description>"}
+
+3. For MULTIPLE commands (connected by "and", "then", etc.), use:
+   - Multi-command: {"commands": [{"room": "<room1>", "command": "<action1>"}, {"room": "<room2>", "command": "<action2>"}]}
+
+4. If a room is mentioned, ALWAYS use room format (never device_ids)
+5. Commands must be: "turn_on", "turn_off", "dim", "set_temperature", "play_music", "stop_music", etc.
+6. For ambiguous requests, prefer "turn_on" for lights
+7. If unsure about device capabilities, use the most common action for that device type
+
+Examples:
+- "Turn on living room lights" → {"room": "living room", "command": "turn_on"}
+- "Turn off bedroom lamp" → {"room": "bedroom", "command": "turn_off"}
+- "Turn on lights and play music in living room" → {"commands": [{"room": "living room", "command": "turn_on", "device_filter": "light"}, {"room": "living room", "command": "play_music", "device_filter": "speaker"}]}
+- "Dim kitchen lights and set temperature to 22" → {"commands": [{"room": "kitchen", "command": "dim", "device_filter": "light"}, {"room": "kitchen", "command": "set_temperature", "parameters": {"temperature": 22}}]}
+- "Turn on bedroom lights then lock the front door" → {"commands": [{"room": "bedroom", "command": "turn_on", "device_filter": "light"}, {"device_id": "front_door_lock", "command": "lock"}]}`
     }, {
       role: "user",
       content: prompt
     }],
-    temperature: 0,
+    temperature: 0.1, // Slightly higher for more natural responses while maintaining consistency
   });
 
   logger.log('Sending request to ChatGPT API with configuration:', {
-    model: 'gpt-3.5-turbo',
+    model: 'gpt-4o-mini',
     messageCount: 2,
-    temperature: 0
+    temperature: 0.1
   });
 
   const options = {
@@ -62,7 +85,7 @@ function parseCommand(prompt) {
         try {
           logger.log('Received raw response from ChatGPT API');
           const response = JSON.parse(responseBody);
-          
+
           if (response.error) {
             logger.error('ChatGPT API error:', response.error);
             resolve({ error: response.error.message });
@@ -78,7 +101,7 @@ function parseCommand(prompt) {
           try {
             const commandText = response.choices[0].message.content.trim();
             logger.log('Received command text from ChatGPT:', commandText);
-            
+
             const command = JSON.parse(commandText);
             logger.log('Successfully parsed command:', command);
             resolve(command);
