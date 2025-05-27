@@ -65,7 +65,7 @@ describe('Status Query Processor', function() {
   describe('Status Query Parsing', function() {
     it('should parse room status queries correctly', function() {
       const result = parseStatusQuery('Show me all devices in bedroom', 'en');
-      
+
       expect(result).to.have.property('type', QUERY_TYPES.ROOM_STATUS);
       expect(result).to.have.property('room', 'bedroom');
       expect(result).to.have.property('confidence').above(0.8);
@@ -75,7 +75,7 @@ describe('Status Query Processor', function() {
 
     it('should parse device type queries correctly', function() {
       const result = parseStatusQuery('What\'s the status of kitchen lights?', 'en');
-      
+
       expect(result).to.have.property('type', QUERY_TYPES.DEVICE_STATUS);
       expect(result).to.have.property('target').that.includes('lights');
       expect(result).to.have.property('room', 'kitchen');
@@ -84,14 +84,14 @@ describe('Status Query Processor', function() {
 
     it('should parse global status queries correctly', function() {
       const result = parseStatusQuery('Tell me about all devices', 'en');
-      
+
       expect(result).to.have.property('type', QUERY_TYPES.GLOBAL_STATUS);
       expect(result).to.have.property('confidence').above(0.7);
     });
 
     it('should handle Swedish room names with special characters', function() {
       const result = parseStatusQuery('Visa enheter i trädgården', 'sv');
-      
+
       expect(result).to.have.property('type', QUERY_TYPES.ROOM_STATUS);
       expect(result).to.have.property('room', 'trädgården');
       expect(result).to.have.property('confidence').above(0.8);
@@ -99,7 +99,7 @@ describe('Status Query Processor', function() {
 
     it('should return null type for non-status queries', function() {
       const result = parseStatusQuery('Turn on the lights', 'en');
-      
+
       expect(result).to.have.property('type', null);
       expect(result).to.have.property('confidence', 0);
     });
@@ -107,10 +107,10 @@ describe('Status Query Processor', function() {
     it('should handle empty or invalid input', function() {
       const emptyResult = parseStatusQuery('', 'en');
       const nullResult = parseStatusQuery(null, 'en');
-      
+
       expect(emptyResult).to.have.property('type', null);
       expect(emptyResult).to.have.property('confidence', 0);
-      
+
       expect(nullResult).to.have.property('type', null);
       expect(nullResult).to.have.property('confidence', 0);
     });
@@ -120,12 +120,12 @@ describe('Status Query Processor', function() {
     TEST_CONFIG.languages.forEach(language => {
       it(`should handle ${language} status queries`, function() {
         const queries = TestDataGenerators.generateStatusQueries(language);
-        
+
         queries.forEach(query => {
           const result = parseStatusQuery(query, language);
           expect(result).to.have.property('language', language);
           expect(result).to.have.property('originalQuery', query);
-          
+
           if (result.type !== null) {
             expect(result.confidence).to.be.above(0.5);
           }
@@ -215,14 +215,14 @@ describe('Status Query Processor', function() {
     it('should handle very long queries', function() {
       const longQuery = 'Could you please tell me what the current status is of all the lighting devices that are currently installed in the kitchen area of my home?';
       const result = parseStatusQuery(longQuery, 'en');
-      
+
       expect(result.type).to.not.be.null;
       expect(result.confidence).to.be.above(0.6);
     });
 
     it('should handle very short queries', function() {
       const shortQueries = ['status?', 'lights?', 'kitchen?'];
-      
+
       shortQueries.forEach(query => {
         const result = parseStatusQuery(query, 'en');
         // Short queries should have lower confidence

@@ -7,11 +7,11 @@
 
 const { expect, sinon, TEST_CONFIG } = require('../utils/testSetup');
 const { createMockHomeState, createMockDevice, createMockLLMFunction } = require('../utils/mockHomeyAPI');
-const { 
-  getDeviceStatus, 
-  getRoomStatus, 
+const {
+  getDeviceStatus,
+  getRoomStatus,
   getDeviceTypeStatus,
-  generateDeviceSummary 
+  generateDeviceSummary
 } = require('../../modules/deviceStatusRetriever');
 
 describe('Device Status Retriever', function() {
@@ -156,7 +156,7 @@ describe('Device Status Retriever', function() {
 
     it('should handle rooms with no devices', async function() {
       const emptyZone = { 'empty_zone': { id: 'empty_zone', name: 'Empty Room' } };
-      
+
       const result = await getRoomStatus(
         'Empty Room',
         ['Empty Room'],
@@ -185,7 +185,7 @@ describe('Device Status Retriever', function() {
       expect(result).to.have.property('deviceType', 'light');
       expect(result).to.have.property('deviceCount').above(0);
       expect(result.devices).to.be.an('array');
-      
+
       // All returned devices should be lights
       result.devices.forEach(device => {
         expect(device).to.have.property('class', 'light');
@@ -204,7 +204,7 @@ describe('Device Status Retriever', function() {
 
       expect(result).to.have.property('success', true);
       expect(result).to.have.property('roomFilter', 'Kitchen');
-      
+
       // Should only return lights from kitchen
       result.devices.forEach(device => {
         expect(device).to.have.property('class', 'light');
@@ -304,7 +304,7 @@ describe('Device Status Retriever', function() {
         name: 'Faulty Device',
         class: 'light'
       });
-      
+
       // Make getCapabilityValue throw an error
       faultyDevice.getCapabilityValue.rejects(new Error('Device error'));
 

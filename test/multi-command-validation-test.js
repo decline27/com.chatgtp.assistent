@@ -36,66 +36,66 @@ function testMultiCommandValidation() {
   // Test cases that simulate what ChatGPT would return
   const testCases = [
     {
-      name: "Multi-command structure (the failing case we fixed)",
+      name: 'Multi-command structure (the failing case we fixed)',
       input: {
         commands: [
-          { room: "living room", command: "turn_on", device_filter: "light" },
-          { room: "living room", command: "play_music", device_filter: "speaker" }
+          { room: 'living room', command: 'turn_on', device_filter: 'light' },
+          { room: 'living room', command: 'play_music', device_filter: 'speaker' }
         ]
       },
       shouldPass: true,
-      description: "Should accept multi-command with commands array"
+      description: 'Should accept multi-command with commands array'
     },
     {
-      name: "Single room command",
+      name: 'Single room command',
       input: {
-        room: "living room",
-        command: "turn_on"
+        room: 'living room',
+        command: 'turn_on'
       },
       shouldPass: true,
-      description: "Should accept single room command"
+      description: 'Should accept single room command'
     },
     {
-      name: "Multiple device IDs command",
+      name: 'Multiple device IDs command',
       input: {
-        device_ids: ["device1", "device2"],
-        command: "turn_off"
+        device_ids: ['device1', 'device2'],
+        command: 'turn_off'
       },
       shouldPass: true,
-      description: "Should accept multiple device IDs command"
+      description: 'Should accept multiple device IDs command'
     },
     {
-      name: "Single device command",
+      name: 'Single device command',
       input: {
-        device_id: "device1",
-        command: "dim"
+        device_id: 'device1',
+        command: 'dim'
       },
       shouldPass: true,
-      description: "Should accept single device command"
+      description: 'Should accept single device command'
     },
     {
-      name: "Invalid command (no target)",
+      name: 'Invalid command (no target)',
       input: {
-        command: "turn_on"
+        command: 'turn_on'
       },
       shouldPass: false,
-      description: "Should reject command without room/device target"
+      description: 'Should reject command without room/device target'
     },
     {
-      name: "Invalid command (no action)",
+      name: 'Invalid command (no action)',
       input: {
-        room: "living room"
+        room: 'living room'
       },
       shouldPass: false,
-      description: "Should reject command without action"
+      description: 'Should reject command without action'
     },
     {
-      name: "Completely invalid structure",
+      name: 'Completely invalid structure',
       input: {
-        invalid: "structure"
+        invalid: 'structure'
       },
       shouldPass: false,
-      description: "Should reject completely invalid structure"
+      description: 'Should reject completely invalid structure'
     }
   ];
 

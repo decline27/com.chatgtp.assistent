@@ -10,67 +10,67 @@ const { preprocessCommand, suggestImprovement } = require('../modules/commandPro
 // Test cases for command preprocessing
 const testCases = [
   {
-    input: "Please turn on the living room lights",
+    input: 'Please turn on the living room lights',
     expected: {
-      intent: "turn_on",
-      rooms: ["living room"],
-      deviceTypes: ["light"]
+      intent: 'turn_on',
+      rooms: ['living room'],
+      deviceTypes: ['light']
     }
   },
   {
-    input: "Switch off bedroom lamp",
+    input: 'Switch off bedroom lamp',
     expected: {
-      intent: "turn_off",
-      rooms: ["bedroom"],
-      deviceTypes: ["light"]
+      intent: 'turn_off',
+      rooms: ['bedroom'],
+      deviceTypes: ['light']
     }
   },
   {
-    input: "Dim kitchen",
+    input: 'Dim kitchen',
     expected: {
-      intent: "dim",
-      rooms: ["kitchen"],
+      intent: 'dim',
+      rooms: ['kitchen'],
       deviceTypes: []
     }
   },
   {
-    input: "Set temperature to 22 degrees in office",
+    input: 'Set temperature to 22 degrees in office',
     expected: {
-      intent: "set_temperature",
-      rooms: ["office"],
-      deviceTypes: ["thermostat"]
+      intent: 'set_temperature',
+      rooms: ['office'],
+      deviceTypes: ['thermostat']
     }
   },
   {
-    input: "Turn on vardagsrum ljus",
+    input: 'Turn on vardagsrum ljus',
     expected: {
-      intent: "turn_on",
-      rooms: ["living room"],
-      deviceTypes: ["light"]
+      intent: 'turn_on',
+      rooms: ['living room'],
+      deviceTypes: ['light']
     }
   },
   {
-    input: "Lock the door",
+    input: 'Lock the door',
     expected: {
-      intent: "lock",
+      intent: 'lock',
       rooms: [],
-      deviceTypes: ["lock"]
+      deviceTypes: ['lock']
     }
   },
   {
-    input: "lights",
+    input: 'lights',
     expected: {
-      intent: "turn_on",
+      intent: 'turn_on',
       rooms: [],
-      deviceTypes: ["light"]
+      deviceTypes: ['light']
     }
   },
   {
-    input: "turn on the ligt in the livingroom",
+    input: 'turn on the ligt in the livingroom',
     expected: {
-      intent: "turn_on",
-      rooms: ["living room"],
-      deviceTypes: ["light"]
+      intent: 'turn_on',
+      rooms: ['living room'],
+      deviceTypes: ['light']
     }
   }
 ];
@@ -91,15 +91,11 @@ function runTests() {
     console.log(`  Intent: ${result.intent} ${intentMatch ? '✅' : '❌'}`);
 
     // Check rooms
-    const roomsMatch = testCase.expected.rooms.every(room =>
-      result.entities.rooms.includes(room)
-    );
+    const roomsMatch = testCase.expected.rooms.every(room => result.entities.rooms.includes(room));
     console.log(`  Rooms: [${result.entities.rooms.join(', ')}] ${roomsMatch ? '✅' : '❌'}`);
 
     // Check device types
-    const devicesMatch = testCase.expected.deviceTypes.every(device =>
-      result.entities.deviceTypes.includes(device)
-    );
+    const devicesMatch = testCase.expected.deviceTypes.every(device => result.entities.deviceTypes.includes(device));
     console.log(`  Devices: [${result.entities.deviceTypes.join(', ')}] ${devicesMatch ? '✅' : '❌'}`);
 
     // Check confidence
@@ -135,14 +131,14 @@ function runExamples() {
   console.log('\n🔍 Example Command Processing:\n');
 
   const examples = [
-    "Turn on all lights in the house",
-    "Dim the bedroom lights to 50%",
-    "Set living room temperature to 22",
-    "Open kitchen curtains",
-    "Lock front door",
-    "lights on",
-    "bedroom off",
-    "help"
+    'Turn on all lights in the house',
+    'Dim the bedroom lights to 50%',
+    'Set living room temperature to 22',
+    'Open kitchen curtains',
+    'Lock front door',
+    'lights on',
+    'bedroom off',
+    'help'
   ];
 
   examples.forEach(example => {

@@ -35,7 +35,7 @@ async function handleStatusQuery(queryText, language = 'en', homeState, llmFunct
       return {
         success: false,
         error: 'Not recognized as a status query',
-        queryText: queryText,
+        queryText,
         confidence: parsedQuery.confidence
       };
     }
@@ -64,7 +64,7 @@ async function handleStatusQuery(queryText, language = 'en', homeState, llmFunct
     return {
       success: false,
       error: `Failed to process status query: ${error.message}`,
-      queryText: queryText
+      queryText
     };
   }
 }
@@ -182,10 +182,8 @@ async function handleDeviceStatusQuery(parsedQuery, availableRooms, devices, zon
 
   // Try to find specific device by name
   const deviceArray = Object.values(devices);
-  const deviceMatches = deviceArray.filter(device =>
-    device.name.toLowerCase().includes(target.toLowerCase()) ||
-    target.toLowerCase().includes(device.name.toLowerCase())
-  );
+  const deviceMatches = deviceArray.filter(device => device.name.toLowerCase().includes(target.toLowerCase())
+    || target.toLowerCase().includes(device.name.toLowerCase()));
 
   if (deviceMatches.length === 1) {
     // Single device match
@@ -200,7 +198,7 @@ async function handleDeviceStatusQuery(parsedQuery, availableRooms, devices, zon
       formattedText: formattedStatus,
       confidence: parsedQuery.confidence
     };
-  } else if (deviceMatches.length > 1) {
+  } if (deviceMatches.length > 1) {
     // Multiple device matches
     const deviceStatuses = [];
     for (const device of deviceMatches.slice(0, 10)) { // Limit to 10 devices
@@ -279,7 +277,7 @@ function extractDeviceTypeFromTarget(target, language) {
     // Add more languages as needed
   };
 
-  const keywords = deviceTypeKeywords[language] || deviceTypeKeywords['en'];
+  const keywords = deviceTypeKeywords[language] || deviceTypeKeywords.en;
   const lowerTarget = target.toLowerCase();
 
   for (const [type, typeKeywords] of Object.entries(keywords)) {

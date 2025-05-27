@@ -12,7 +12,7 @@ const https = require('https');
 function downloadFile(fileUrl, outputPath) {
   return new Promise((resolve, reject) => {
     const dest = fs.createWriteStream(outputPath);
-    https.get(fileUrl, (response) => {
+    https.get(fileUrl, response => {
       if (response.statusCode !== 200) {
         dest.end();
         reject(new Error(`HTTP error! status: ${response.statusCode}`));
@@ -23,7 +23,7 @@ function downloadFile(fileUrl, outputPath) {
         dest.close();
         resolve();
       });
-    }).on('error', (err) => {
+    }).on('error', err => {
       dest.end();
       reject(err);
     });
@@ -37,8 +37,8 @@ function downloadFile(fileUrl, outputPath) {
  */
 function downloadBuffer(fileUrl) {
   return new Promise((resolve, reject) => {
-    let data = [];
-    https.get(fileUrl, (response) => {
+    const data = [];
+    https.get(fileUrl, response => {
       if (response.statusCode !== 200) {
         reject(new Error(`Failed to download file, status: ${response.statusCode}`));
         return;

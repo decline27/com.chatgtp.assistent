@@ -55,7 +55,7 @@ function createMockDevice(config = {}) {
 
   // Add mock methods
   device.setCapabilityValue = sinon.stub().resolves(true);
-  device.getCapabilityValue = sinon.stub().callsFake((capability) => {
+  device.getCapabilityValue = sinon.stub().callsFake(capability => {
     return Promise.resolve(device.capabilitiesObj[capability]?.value || null);
   });
 
@@ -188,7 +188,7 @@ function createMockLLMFunction(responses = {}) {
 
   const allResponses = { ...defaultResponses, ...responses };
 
-  return sinon.stub().callsFake(async (prompt) => {
+  return sinon.stub().callsFake(async prompt => {
     // Extract room name from prompt for simple matching
     for (const [key, response] of Object.entries(allResponses)) {
       if (prompt.toLowerCase().includes(key.toLowerCase())) {
@@ -213,13 +213,13 @@ function createMockHomeyAPI(homeState) {
   return {
     devices: {
       getDevices: sinon.stub().resolves(homeState.devices),
-      getDevice: sinon.stub().callsFake((id) => {
+      getDevice: sinon.stub().callsFake(id => {
         return Promise.resolve(homeState.devices[id] || null);
       })
     },
     zones: {
       getZones: sinon.stub().resolves(homeState.zones),
-      getZone: sinon.stub().callsFake((id) => {
+      getZone: sinon.stub().callsFake(id => {
         return Promise.resolve(homeState.zones[id] || null);
       })
     }

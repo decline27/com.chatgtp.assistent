@@ -1,3 +1,51 @@
 {
-  "extends": "athom/homey-app"
+  "extends": ["eslint-config-airbnb-base"],
+  "env": {
+    "node": true,
+    "es6": true,
+    "mocha": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "script"
+  },
+  "rules": {
+    "strict": "off",
+    "no-console": "off",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "max-len": ["warn", { "code": 120, "ignoreComments": true }],
+    "no-underscore-dangle": "off",
+    "class-methods-use-this": "off",
+    "import/no-unresolved": "off",
+    "import/order": "off",
+    "quotes": ["warn", "single", { "allowTemplateLiterals": true }],
+    "comma-dangle": ["warn", "only-multiline"],
+    "object-curly-newline": "off",
+    "arrow-parens": ["warn", "as-needed"],
+    "no-else-return": "warn",
+    "no-return-await": "warn",
+    "prefer-destructuring": "off",
+    "no-restricted-syntax": "off",
+    "no-await-in-loop": "warn",
+    "no-plusplus": "off",
+    "radix": "warn",
+    "global-require": "off",
+    "no-param-reassign": "off",
+    "default-case": "warn",
+    "quote-props": "off",
+    "no-trailing-spaces": "warn",
+    "space-before-function-paren": "off",
+    "func-names": "off",
+    "prefer-arrow-callback": "off",
+    "arrow-body-style": "off",
+    "padded-blocks": "off",
+    "no-unused-expressions": "warn",
+    "valid-typeof": "error"
+  },
+  "ignorePatterns": [
+    "coverage/**",
+    "node_modules/**",
+    "test-reports/**",
+    "*.min.js"
+  ]
 }

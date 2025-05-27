@@ -30,8 +30,8 @@ function levenshteinDistance(a, b) {
     for (let i = 1; i <= a.length; i++) {
       const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
       matrix[j][i] = Math.min(
-        matrix[j][i - 1] + 1,     // deletion
-        matrix[j - 1][i] + 1,     // insertion
+        matrix[j][i - 1] + 1, // deletion
+        matrix[j - 1][i] + 1, // insertion
         matrix[j - 1][i - 1] + indicator // substitution
       );
     }
@@ -86,16 +86,16 @@ function removeDefiniteArticles(roomName, language = 'en') {
   if (!roomName) return '';
 
   const articlePatterns = {
-    'sv': /(en|et|n)$/i,           // Swedish: -en, -et, -n
-    'no': /(en|et|a)$/i,           // Norwegian: -en, -et, -a
-    'da': /(en|et)$/i,             // Danish: -en, -et
-    'de': /^(der|die|das)\s+/i,    // German: der, die, das
-    'fr': /^(le|la|les|l')\s+/i,   // French: le, la, les, l'
-    'es': /^(el|la|los|las)\s+/i,  // Spanish: el, la, los, las
+    'sv': /(en|et|n)$/i, // Swedish: -en, -et, -n
+    'no': /(en|et|a)$/i, // Norwegian: -en, -et, -a
+    'da': /(en|et)$/i, // Danish: -en, -et
+    'de': /^(der|die|das)\s+/i, // German: der, die, das
+    'fr': /^(le|la|les|l')\s+/i, // French: le, la, les, l'
+    'es': /^(el|la|los|las)\s+/i, // Spanish: el, la, los, las
     'it': /^(il|la|lo|gli|le)\s+/i, // Italian: il, la, lo, gli, le
-    'pt': /^(o|a|os|as)\s+/i,      // Portuguese: o, a, os, as
-    'nl': /^(de|het)\s+/i,         // Dutch: de, het
-    'en': /^(the)\s+/i             // English: the
+    'pt': /^(o|a|os|as)\s+/i, // Portuguese: o, a, os, as
+    'nl': /^(de|het)\s+/i, // Dutch: de, het
+    'en': /^(the)\s+/i // English: the
   };
 
   const pattern = articlePatterns[language];
@@ -115,7 +115,7 @@ function generatePhoneticVariations(word) {
   if (!word) return [];
 
   const variations = [word.toLowerCase()];
-  let current = word.toLowerCase();
+  const current = word.toLowerCase();
 
   // Common phonetic substitutions
   const substitutions = [
@@ -170,7 +170,7 @@ function fuzzyMatch(input, candidates, language = 'en') {
 
     // Method 2: Exact match without articles
     if (inputWithoutArticles === candidateWithoutArticles) {
-      if (0.95 > bestConfidence) {
+      if (bestConfidence < 0.95) {
         bestMatch = candidate;
         bestConfidence = 0.95;
         bestMethod = 'exact_no_articles';
@@ -178,10 +178,10 @@ function fuzzyMatch(input, candidates, language = 'en') {
     }
 
     // Method 3: Substring matching
-    if (normalizedInput.includes(candidateWithoutArticles) ||
-        candidateWithoutArticles.includes(inputWithoutArticles)) {
-      const confidence = Math.min(inputWithoutArticles.length, candidateWithoutArticles.length) /
-                        Math.max(inputWithoutArticles.length, candidateWithoutArticles.length);
+    if (normalizedInput.includes(candidateWithoutArticles)
+        || candidateWithoutArticles.includes(inputWithoutArticles)) {
+      const confidence = Math.min(inputWithoutArticles.length, candidateWithoutArticles.length)
+                        / Math.max(inputWithoutArticles.length, candidateWithoutArticles.length);
       if (confidence > bestConfidence && confidence >= SIMILARITY_THRESHOLD) {
         bestMatch = candidate;
         bestConfidence = confidence;
@@ -214,8 +214,8 @@ function fuzzyMatch(input, candidates, language = 'en') {
     match: bestMatch,
     confidence: bestConfidence,
     method: bestMethod,
-    normalizedInput: normalizedInput,
-    inputWithoutArticles: inputWithoutArticles
+    normalizedInput,
+    inputWithoutArticles
   };
 }
 

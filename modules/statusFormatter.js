@@ -92,14 +92,14 @@ const STATUS_TEMPLATES = {
  * @returns {string} Formatted text
  */
 function getLocalizedText(key, language = 'en', params = {}) {
-  const templates = STATUS_TEMPLATES[language] || STATUS_TEMPLATES['en'];
-  let text = templates[key] || STATUS_TEMPLATES['en'][key] || key;
-  
+  const templates = STATUS_TEMPLATES[language] || STATUS_TEMPLATES.en;
+  let text = templates[key] || STATUS_TEMPLATES.en[key] || key;
+
   // Substitute parameters
   Object.keys(params).forEach(param => {
     text = text.replace(new RegExp(`{${param}}`, 'g'), params[param]);
   });
-  
+
   return text;
 }
 
@@ -120,12 +120,12 @@ function formatRoomStatus(roomStatus, language = 'en', includeDetails = true) {
     }
     return errorText;
   }
-  
+
   const parts = [];
-  
+
   // Header
   parts.push(getLocalizedText('room_header', language, { room: roomStatus.matchedRoom }));
-  
+
   // Match info (if advanced matching was used)
   if (roomStatus.matchConfidence && roomStatus.matchConfidence < 1.0) {
     const matchInfo = getLocalizedText('match_info', language, {
@@ -136,40 +136,40 @@ function formatRoomStatus(roomStatus, language = 'en', includeDetails = true) {
     });
     parts.push(matchInfo);
   }
-  
+
   // Summary
   parts.push(''); // Empty line
   parts.push(getLocalizedText('summary_header', language));
-  
+
   if (roomStatus.deviceCount === 0) {
     parts.push(getLocalizedText('no_devices', language, { room: roomStatus.matchedRoom }));
     return parts.join('\n');
   }
-  
+
   parts.push(getLocalizedText('device_count', language, { count: roomStatus.deviceCount }));
-  
+
   // Quick status overview
   const onlineDevices = roomStatus.devices.filter(d => d.isOnline).length;
   const offlineDevices = roomStatus.deviceCount - onlineDevices;
-  
+
   if (onlineDevices > 0) {
     parts.push(`${getLocalizedText('device_online', language)}: ${onlineDevices}`);
   }
   if (offlineDevices > 0) {
     parts.push(`${getLocalizedText('device_offline', language)}: ${offlineDevices}`);
   }
-  
+
   // Device details
   if (includeDetails && roomStatus.devices.length > 0) {
     parts.push(''); // Empty line
     parts.push(getLocalizedText('details_header', language));
-    
+
     roomStatus.devices.forEach(device => {
       const statusLine = `• **${device.name}** (${device.class}): ${device.summary}`;
       parts.push(statusLine);
     });
   }
-  
+
   return parts.join('\n');
 }
 
@@ -182,43 +182,43 @@ function formatRoomStatus(roomStatus, language = 'en', includeDetails = true) {
  */
 function formatDeviceTypeStatus(deviceTypeStatus, language = 'en', includeDetails = true) {
   const parts = [];
-  
+
   // Header
   parts.push(getLocalizedText('device_type_status', language, { type: deviceTypeStatus.deviceType }));
-  
+
   // Summary
   parts.push(''); // Empty line
   parts.push(getLocalizedText('summary_header', language));
-  
+
   if (deviceTypeStatus.deviceCount === 0) {
     parts.push(getLocalizedText('no_devices_of_type', language, { type: deviceTypeStatus.deviceType }));
     return parts.join('\n');
   }
-  
+
   parts.push(getLocalizedText('device_count', language, { count: deviceTypeStatus.deviceCount }));
-  
+
   // Quick status overview
   const onlineDevices = deviceTypeStatus.devices.filter(d => d.isOnline).length;
   const offlineDevices = deviceTypeStatus.deviceCount - onlineDevices;
-  
+
   if (onlineDevices > 0) {
     parts.push(`${getLocalizedText('device_online', language)}: ${onlineDevices}`);
   }
   if (offlineDevices > 0) {
     parts.push(`${getLocalizedText('device_offline', language)}: ${offlineDevices}`);
   }
-  
+
   // Device details
   if (includeDetails && deviceTypeStatus.devices.length > 0) {
     parts.push(''); // Empty line
     parts.push(getLocalizedText('details_header', language));
-    
+
     deviceTypeStatus.devices.forEach(device => {
       const statusLine = `• **${device.name}**: ${device.summary}`;
       parts.push(statusLine);
     });
   }
-  
+
   return parts.join('\n');
 }
 
@@ -231,27 +231,27 @@ function formatDeviceTypeStatus(deviceTypeStatus, language = 'en', includeDetail
  */
 function formatGlobalStatus(allDevices, language = 'en', includeDetails = false) {
   const parts = [];
-  
+
   // Header
   parts.push(getLocalizedText('global_status', language));
-  
+
   // Summary
   parts.push(''); // Empty line
   parts.push(getLocalizedText('summary_header', language));
-  
+
   const totalDevices = allDevices.length;
   const onlineDevices = allDevices.filter(d => d.isOnline).length;
   const offlineDevices = totalDevices - onlineDevices;
-  
+
   parts.push(getLocalizedText('device_count', language, { count: totalDevices }));
-  
+
   if (onlineDevices > 0) {
     parts.push(`${getLocalizedText('device_online', language)}: ${onlineDevices}`);
   }
   if (offlineDevices > 0) {
     parts.push(`${getLocalizedText('device_offline', language)}: ${offlineDevices}`);
   }
-  
+
   // Device type breakdown
   const devicesByType = {};
   allDevices.forEach(device => {
@@ -264,7 +264,7 @@ function formatGlobalStatus(allDevices, language = 'en', includeDetails = false)
       devicesByType[type].online++;
     }
   });
-  
+
   if (Object.keys(devicesByType).length > 1) {
     parts.push(''); // Empty line
     parts.push('**Device Types:**');
@@ -272,12 +272,12 @@ function formatGlobalStatus(allDevices, language = 'en', includeDetails = false)
       parts.push(`• ${type}: ${counts.online}/${counts.total} online`);
     });
   }
-  
+
   // Device details (only if requested and not too many devices)
   if (includeDetails && allDevices.length <= 10) {
     parts.push(''); // Empty line
     parts.push(getLocalizedText('details_header', language));
-    
+
     allDevices.forEach(device => {
       const statusLine = `• **${device.name}** (${device.class}): ${device.summary}`;
       parts.push(statusLine);
@@ -286,7 +286,7 @@ function formatGlobalStatus(allDevices, language = 'en', includeDetails = false)
     parts.push(''); // Empty line
     parts.push('_Too many devices to show details. Use room-specific queries for details._');
   }
-  
+
   return parts.join('\n');
 }
 
@@ -298,14 +298,14 @@ function formatGlobalStatus(allDevices, language = 'en', includeDetails = false)
  */
 function formatSingleDeviceStatus(deviceStatus, language = 'en') {
   const parts = [];
-  
+
   parts.push(`🔧 **${deviceStatus.name}** (${deviceStatus.class})`);
   parts.push(`Status: ${deviceStatus.summary}`);
-  
+
   if (!deviceStatus.isOnline) {
     parts.push(`⚠️ ${getLocalizedText('device_offline', language)}`);
   }
-  
+
   return parts.join('\n');
 }
 

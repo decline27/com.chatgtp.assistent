@@ -32,14 +32,14 @@ const TestUtils = {
    * @param {number} ms - Milliseconds to delay
    * @returns {Promise}
    */
-  delay: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+  delay: ms => new Promise(resolve => setTimeout(resolve, ms)),
 
   /**
    * Generate random test data
    * @param {string} type - Type of data to generate
    * @returns {*} Generated data
    */
-  generateTestData: (type) => {
+  generateTestData: type => {
     switch (type) {
       case 'deviceId':
         return `device_${Math.random().toString(36).substr(2, 9)}`;
@@ -90,7 +90,7 @@ const TestUtils = {
    * @param {object} methods - Methods to stub
    * @returns {object} Stubbed object
    */
-  createStub: (methods) => {
+  createStub: methods => {
     const stub = {};
     for (const [method, behavior] of Object.entries(methods)) {
       if (typeof behavior === 'function') {
@@ -110,7 +110,7 @@ const TestDataGenerators = {
    * @param {string} language - Language code
    * @returns {Array} Array of test commands
    */
-  generateMultilingualCommands: (language) => {
+  generateMultilingualCommands: language => {
     const commands = {
       en: [
         'Turn on the living room lights',
@@ -156,7 +156,7 @@ const TestDataGenerators = {
    * @param {string} language - Language code
    * @returns {Array} Array of status queries
    */
-  generateStatusQueries: (language) => {
+  generateStatusQueries: language => {
     const queries = {
       en: [
         'What\'s the status of kitchen lights?',

@@ -127,7 +127,7 @@ function detectMultiCommand(text, language = 'en') {
   const commaPattern = /,\s*(?=\w)/;
 
   // Get connectors for the detected language, fallback to English
-  const languageConnectors = connectors[language] || connectors['en'];
+  const languageConnectors = connectors[language] || connectors.en;
   const allConnectors = [...languageConnectors, commaPattern];
 
   // Multilingual action verbs
@@ -143,7 +143,7 @@ function detectMultiCommand(text, language = 'en') {
   };
 
   // Get action verbs for the detected language, fallback to English
-  const languageActions = actionVerbs[language] || actionVerbs['en'];
+  const languageActions = actionVerbs[language] || actionVerbs.en;
 
   let actionCount = 0;
   languageActions.forEach(verb => {
@@ -384,19 +384,19 @@ function suggestImprovement(processedCommand) {
   const suggestions = [];
 
   if (entities.rooms.length === 0) {
-    suggestions.push("specify which room (e.g., 'living room', 'kitchen')");
+    suggestions.push('specify which room (e.g., \'living room\', \'kitchen\')');
   }
 
   if (intent === 'turn_on' && !/\b(turn on|switch on|activate)\b/i.test(processedCommand.original)) {
-    suggestions.push("be more specific about the action (e.g., 'turn on', 'turn off')");
+    suggestions.push('be more specific about the action (e.g., \'turn on\', \'turn off\')');
   }
 
   if (entities.deviceTypes.length === 0 && entities.rooms.length === 0) {
-    suggestions.push("mention what device or room you want to control");
+    suggestions.push('mention what device or room you want to control');
   }
 
   if (suggestions.length === 0) {
-    return "Try being more specific about what you want to control and what action to take.";
+    return 'Try being more specific about what you want to control and what action to take.';
   }
 
   return `Try to ${suggestions.join(' and ')}.`;

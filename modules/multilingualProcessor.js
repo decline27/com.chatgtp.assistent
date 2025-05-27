@@ -375,18 +375,14 @@ function normalizeRoomNameLegacy(roomName, language = 'en', availableRooms = [])
 
   // Check if the original room name (with proper casing) exists in available rooms
   if (availableRooms.length > 0) {
-    const exactMatch = availableRooms.find(room =>
-      room.toLowerCase() === lowerRoomName
-    );
+    const exactMatch = availableRooms.find(room => room.toLowerCase() === lowerRoomName);
     if (exactMatch) {
       return exactMatch.toLowerCase();
     }
 
     // Check for case-insensitive partial matches with original room names
-    const partialMatch = availableRooms.find(room =>
-      room.toLowerCase().includes(lowerRoomName) ||
-      lowerRoomName.includes(room.toLowerCase())
-    );
+    const partialMatch = availableRooms.find(room => room.toLowerCase().includes(lowerRoomName)
+      || lowerRoomName.includes(room.toLowerCase()));
     if (partialMatch) {
       return partialMatch.toLowerCase();
     }
@@ -395,10 +391,10 @@ function normalizeRoomNameLegacy(roomName, language = 'en', availableRooms = [])
     if (language === 'sv') {
       // Check if adding/removing definite articles creates a match
       const withoutArticle = lowerRoomName.replace(/(en|et|n)$/, '');
-      const withArticle = lowerRoomName + 'en';
+      const withArticle = `${lowerRoomName}en`;
 
       // Also handle character variations (ä vs ä, etc.)
-      const normalizeSwedish = (str) => {
+      const normalizeSwedish = str => {
         return str.replace(/ä/g, 'ä').replace(/ö/g, 'ö').replace(/å/g, 'å');
       };
 
@@ -408,15 +404,15 @@ function normalizeRoomNameLegacy(roomName, language = 'en', availableRooms = [])
         const normalizedWith = normalizeSwedish(withArticle);
         const normalizedOriginal = normalizeSwedish(lowerRoomName);
 
-        return roomLower === normalizedWithout ||
-               roomLower === normalizedWith ||
-               roomLower === normalizedOriginal ||
-               roomLower.includes(normalizedWithout) ||
-               roomLower.includes(normalizedWith) ||
-               roomLower.includes(normalizedOriginal) ||
-               normalizedWithout.includes(roomLower) ||
-               normalizedWith.includes(roomLower) ||
-               normalizedOriginal.includes(roomLower);
+        return roomLower === normalizedWithout
+               || roomLower === normalizedWith
+               || roomLower === normalizedOriginal
+               || roomLower.includes(normalizedWithout)
+               || roomLower.includes(normalizedWith)
+               || roomLower.includes(normalizedOriginal)
+               || normalizedWithout.includes(roomLower)
+               || normalizedWith.includes(roomLower)
+               || normalizedOriginal.includes(roomLower);
       });
 
       if (articleMatch) {
@@ -429,16 +425,12 @@ function normalizeRoomNameLegacy(roomName, language = 'en', availableRooms = [])
   const languageRooms = ROOM_TRANSLATIONS[language] || {};
 
   for (const [englishRoom, translations] of Object.entries(languageRooms)) {
-    if (translations.some(translation =>
-      lowerRoomName.includes(translation.toLowerCase()) ||
-      translation.toLowerCase().includes(lowerRoomName)
-    )) {
+    if (translations.some(translation => lowerRoomName.includes(translation.toLowerCase())
+      || translation.toLowerCase().includes(lowerRoomName))) {
       // If we have available rooms, check if the English translation would match
       if (availableRooms.length > 0) {
-        const englishMatch = availableRooms.find(room =>
-          room.toLowerCase().includes(englishRoom.toLowerCase()) ||
-          englishRoom.toLowerCase().includes(room.toLowerCase())
-        );
+        const englishMatch = availableRooms.find(room => room.toLowerCase().includes(englishRoom.toLowerCase())
+          || englishRoom.toLowerCase().includes(room.toLowerCase()));
         if (!englishMatch) {
           // English translation doesn't match available rooms, keep original
           return lowerRoomName;
@@ -451,16 +443,12 @@ function normalizeRoomNameLegacy(roomName, language = 'en', availableRooms = [])
   // Fallback: check all languages for fuzzy matching
   for (const [lang, rooms] of Object.entries(ROOM_TRANSLATIONS)) {
     for (const [englishRoom, translations] of Object.entries(rooms)) {
-      if (translations.some(translation =>
-        lowerRoomName.includes(translation.toLowerCase()) ||
-        translation.toLowerCase().includes(lowerRoomName)
-      )) {
+      if (translations.some(translation => lowerRoomName.includes(translation.toLowerCase())
+        || translation.toLowerCase().includes(lowerRoomName))) {
         // If we have available rooms, check if the English translation would match
         if (availableRooms.length > 0) {
-          const englishMatch = availableRooms.find(room =>
-            room.toLowerCase().includes(englishRoom.toLowerCase()) ||
-            englishRoom.toLowerCase().includes(room.toLowerCase())
-          );
+          const englishMatch = availableRooms.find(room => room.toLowerCase().includes(englishRoom.toLowerCase())
+            || englishRoom.toLowerCase().includes(room.toLowerCase()));
           if (!englishMatch) {
             // English translation doesn't match available rooms, keep original
             return lowerRoomName;
@@ -498,12 +486,10 @@ function normalizeAction(action, language = 'en') {
 
   // If already in English, check if it's a valid English action
   if (language === 'en') {
-    const englishActions = ACTION_TRANSLATIONS['en'] || {};
+    const englishActions = ACTION_TRANSLATIONS.en || {};
     for (const [englishAction, translations] of Object.entries(englishActions)) {
-      if (translations.some(translation =>
-        lowerAction === translation.toLowerCase() ||
-        lowerAction.includes(translation.toLowerCase())
-      )) {
+      if (translations.some(translation => lowerAction === translation.toLowerCase()
+        || lowerAction.includes(translation.toLowerCase()))) {
         return englishAction;
       }
     }
@@ -515,9 +501,7 @@ function normalizeAction(action, language = 'en') {
 
   // First pass: exact matches
   for (const [englishAction, translations] of Object.entries(languageActions)) {
-    if (translations.some(translation =>
-      lowerAction === translation.toLowerCase()
-    )) {
+    if (translations.some(translation => lowerAction === translation.toLowerCase())) {
       return englishAction;
     }
   }
@@ -541,11 +525,9 @@ function normalizeAction(action, language = 'en') {
   // Fallback: check all languages for exact matching
   for (const [lang, actions] of Object.entries(ACTION_TRANSLATIONS)) {
     for (const [englishAction, translations] of Object.entries(actions)) {
-      if (translations.some(translation =>
-        lowerAction === translation.toLowerCase() ||
-        lowerAction.includes(translation.toLowerCase()) ||
-        translation.toLowerCase().includes(lowerAction)
-      )) {
+      if (translations.some(translation => lowerAction === translation.toLowerCase()
+        || lowerAction.includes(translation.toLowerCase())
+        || translation.toLowerCase().includes(lowerAction))) {
         return englishAction;
       }
     }
@@ -574,10 +556,8 @@ function normalizeDeviceType(deviceType, language = 'en') {
   const languageDevices = DEVICE_TRANSLATIONS[language] || {};
 
   for (const [englishDevice, translations] of Object.entries(languageDevices)) {
-    if (translations.some(translation =>
-      lowerDeviceType.includes(translation.toLowerCase()) ||
-      translation.toLowerCase().includes(lowerDeviceType)
-    )) {
+    if (translations.some(translation => lowerDeviceType.includes(translation.toLowerCase())
+      || translation.toLowerCase().includes(lowerDeviceType))) {
       return englishDevice;
     }
   }
@@ -585,10 +565,8 @@ function normalizeDeviceType(deviceType, language = 'en') {
   // Fallback: check all languages for fuzzy matching
   for (const [lang, devices] of Object.entries(DEVICE_TRANSLATIONS)) {
     for (const [englishDevice, translations] of Object.entries(devices)) {
-      if (translations.some(translation =>
-        lowerDeviceType.includes(translation.toLowerCase()) ||
-        translation.toLowerCase().includes(lowerDeviceType)
-      )) {
+      if (translations.some(translation => lowerDeviceType.includes(translation.toLowerCase())
+        || translation.toLowerCase().includes(lowerDeviceType))) {
         return englishDevice;
       }
     }
@@ -618,7 +596,7 @@ function processMultilingualCommand(commandText, detectedLanguage = 'en', availa
   }
 
   const originalText = commandText.trim();
-  let normalizedText = originalText.toLowerCase();
+  const normalizedText = originalText.toLowerCase();
 
   // Extract and normalize rooms
   const rooms = [];

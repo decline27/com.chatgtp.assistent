@@ -1,8 +1,6 @@
 'use strict';
 
 const Homey = require('homey');
-const fs = require('fs');
-const path = require('path');
 // Removed local https require as HTTP logic is now in httpHelper
 
 // Require our modules
@@ -11,12 +9,11 @@ const { transcribeVoice, initWhisper } = require('./modules/speech');
 const { initChatGPT, parseCommand } = require('./modules/chatgpt');
 const { downloadBuffer } = require('./modules/httpHelper');
 const { getHomeState, getDevicesMapping } = require('./modules/homeyApiHelper');
-// Import the Homey API client from homey-api (v3.0.0-rc.19)
-const { HomeyAPIV3 } = require('homey-api');
 const initTelegramListener = require('./modules/telegramBot');
 const { constructPrompt } = require('./modules/chatgptHelper');
-const { preprocessCommand, suggestImprovement, detectMultiCommand, parseMultiCommand } = require('./modules/commandProcessor');
-const { handleStatusQuery, isStatusQuery } = require('./modules/statusQueryHandler');
+const { preprocessCommand, suggestImprovement } = require('./modules/commandProcessor');
+const { handleStatusQuery } = require('./modules/statusQueryHandler');
+const { initializeKeys } = require('./modules/secureKeyManager');
 
 // Removed redundant downloadFile helper from app.js
 
@@ -30,7 +27,7 @@ const { handleStatusQuery, isStatusQuery } = require('./modules/statusQueryHandl
 function getCapabilityKeys(device) {
   if (device.capabilities && Array.isArray(device.capabilities)) {
     return device.capabilities;
-  } else if (device.capabilitiesObj && typeof device.capabilitiesObj === 'object') {
+  } if (device.capabilitiesObj && typeof device.capabilitiesObj === 'object') {
     return Object.keys(device.capabilitiesObj);
   }
   return [];
@@ -78,17 +75,57 @@ class ChatGPTAssistant extends Homey.App {
    * @returns {Promise<Object>} A promise resolving to the JSON command parsed by ChatGPT.
    */
   async parseCommandWithState(commandText, detectedLanguage = 'en') {
+    // Input validation
+    if (!commandText || typeof commandText !== 'string') {
+      return { error: 'Invalid command text: must be a non-empty string' };
+    }
+
+    if (commandText.length > 1000) {
+      return { error: 'Command text too long: maximum 1000 characters allowed' };
+    }
+
+    // Character filtering - allow alphanumeric, spaces, common punctuation, and international characters
+    if (!/^[a-zA-Z0-9\s\-_åäöÅÄÖéèêëíìîïóòôõúùûüñçÉÈÊËÍÌÎÏÓÒÔÕÚÙÛÜÑÇ.,!?'"()]+$/.test(commandText)) {
+      return { error: 'Command contains invalid characters: only letters, numbers, spaces, and basic punctuation allowed' };
+    }
+
+    // Language validation
+    const validLanguages = ['en', 'sv', 'fr', 'de', 'es', 'it', 'pt', 'nl', 'no', 'da', 'fi'];
+    if (!validLanguages.includes(detectedLanguage)) {
+      this.log(`Invalid language detected: ${detectedLanguage}, defaulting to English`);
+      detectedLanguage = 'en'; // Default fallback
+    }
+
+    // Sanitize input
+    const sanitizedCommand = commandText.trim().replace(/\s+/g, ' ');
+
+    // Additional security check for potential injection patterns
+    const suspiciousPatterns = [
+      /javascript:/i,
+      /<script/i,
+      /eval\(/i,
+      /function\(/i,
+      /setTimeout/i,
+      /setInterval/i
+    ];
+
+    for (const pattern of suspiciousPatterns) {
+      if (pattern.test(sanitizedCommand)) {
+        return { error: 'Command contains potentially unsafe content' };
+      }
+    }
+
     const homeState = await this.getHomeState();
 
     // Store the original command for device filtering
-    this.lastProcessedCommand = commandText;
+    this.lastProcessedCommand = sanitizedCommand;
 
     // Extract available room names for multilingual processing
     const availableRooms = homeState.zones ? Object.values(homeState.zones).map(zone => zone.name) : [];
 
     // Preprocess the command for better understanding with multilingual support
-    const processedCmd = preprocessCommand(commandText, detectedLanguage, availableRooms);
-    this.log("Processing command:", {
+    const processedCmd = preprocessCommand(sanitizedCommand, detectedLanguage, availableRooms);
+    this.log('Processing command:', {
       original: commandText,
       processed: processedCmd.processed,
       intent: processedCmd.intent,
@@ -123,7 +160,7 @@ class ChatGPTAssistant extends Homey.App {
       if (!jsonCommand.room && jsonCommand.device_ids && homeState.zones) {
         for (const [, zone] of Object.entries(homeState.zones)) {
           const zoneName = zone.name.toLowerCase();
-          const commandLower = commandText.toLowerCase();
+          const commandLower = sanitizedCommand.toLowerCase();
 
           // Check for exact or partial matches
           if (commandLower.includes(zoneName) || zoneName.includes(commandLower.split(' ').find(word => word.length > 3) || '')) {
@@ -137,7 +174,7 @@ class ChatGPTAssistant extends Homey.App {
 
       // Handle status queries
       if (jsonCommand.query_type === 'status') {
-        this.log("Processing status query:", JSON.stringify(jsonCommand, null, 2));
+        this.log('Processing status query:', JSON.stringify(jsonCommand, null, 2));
         return jsonCommand; // Return status query for processing in executeHomeyCommand
       }
 
@@ -152,11 +189,11 @@ class ChatGPTAssistant extends Homey.App {
         return { error: 'No action specified. Please specify what you want to do (turn on/off, dim, etc.)' };
       }
 
-      this.log("Parsed command:", JSON.stringify(jsonCommand, null, 2));
+      this.log('Parsed command:', JSON.stringify(jsonCommand, null, 2));
       return jsonCommand;
 
     } catch (error) {
-      this.error("Error parsing command:", error);
+      this.error('Error parsing command:', error);
       return { error: `Failed to understand command: ${error.message}` };
     }
   }
@@ -281,7 +318,7 @@ class ChatGPTAssistant extends Homey.App {
       const homeState = await this.getHomeState();
 
       // Create a mock LLM function for semantic matching (using our existing ChatGPT integration)
-      const llmFunction = async (prompt) => {
+      const llmFunction = async prompt => {
         try {
           return await this.chatgpt.parseCommand(prompt);
         } catch (error) {
@@ -309,9 +346,8 @@ class ChatGPTAssistant extends Homey.App {
 
       if (result.success) {
         return result.formattedText;
-      } else {
-        throw new Error(result.error || 'Status query failed');
       }
+      throw new Error(result.error || 'Status query failed');
 
     } catch (error) {
       this.error('Error executing status query:', error);
@@ -481,18 +517,18 @@ class ChatGPTAssistant extends Homey.App {
     }
 
     // If ChatGPT returned "onoff", convert it to explicit commands.
-    if (jsonCommand.command === "onoff") {
+    if (jsonCommand.command === 'onoff') {
       if (jsonCommand.parameters && typeof jsonCommand.parameters.onoff === 'boolean') {
-        jsonCommand.command = jsonCommand.parameters.onoff ? "turn_on" : "turn_off";
+        jsonCommand.command = jsonCommand.parameters.onoff ? 'turn_on' : 'turn_off';
       } else {
-        throw new Error("Invalid parameters for onoff command.");
+        throw new Error('Invalid parameters for onoff command.');
       }
     }
 
     // Helper function to determine if a device class is controllable for on/off commands
     function isControllableDeviceClass(deviceClass) {
-      const readOnlyClasses = ["sensor", "camera", "button", "other"];
-      const limitedControlClasses = ["thermostat"]; // These have specific commands only
+      const readOnlyClasses = ['sensor', 'camera', 'button', 'other'];
+      const limitedControlClasses = ['thermostat']; // These have specific commands only
 
       if (readOnlyClasses.includes(deviceClass)) {
         return false;
@@ -508,26 +544,26 @@ class ChatGPTAssistant extends Homey.App {
       const deviceClass = device.class;
 
       // Handle on/off commands with device-specific logic
-      if (command === "turn_on" || command === "turn_off") {
+      if (command === 'turn_on' || command === 'turn_off') {
         // Standard onoff capability (most common)
-        if (caps.includes("onoff")) return "onoff";
+        if (caps.includes('onoff')) return 'onoff';
 
         // Device-specific mappings
         switch (deviceClass) {
-          case "speaker":
-            if (caps.includes("speaker_playing")) return "speaker_playing";
+          case 'speaker':
+            if (caps.includes('speaker_playing')) return 'speaker_playing';
             break;
-          case "curtain":
-          case "blinds":
-            if (caps.includes("windowcoverings_set")) return "windowcoverings_set";
+          case 'curtain':
+          case 'blinds':
+            if (caps.includes('windowcoverings_set')) return 'windowcoverings_set';
             break;
-          case "lock":
-            if (caps.includes("locked")) return "locked";
+          case 'lock':
+            if (caps.includes('locked')) return 'locked';
             break;
-          case "thermostat":
+          case 'thermostat':
             // Thermostats don't typically have on/off
             return null;
-          case "sensor":
+          case 'sensor':
             // Sensors are read-only
             return null;
         }
@@ -536,35 +572,35 @@ class ChatGPTAssistant extends Homey.App {
 
       // Handle specific commands
       switch (command) {
-        case "dim":
-          if (caps.includes("dim")) return "dim";
+        case 'dim':
+          if (caps.includes('dim')) return 'dim';
           break;
-        case "set_temperature":
-          if (caps.includes("target_temperature")) return "target_temperature";
+        case 'set_temperature':
+          if (caps.includes('target_temperature')) return 'target_temperature';
           break;
-        case "open":
-          if (caps.includes("windowcoverings_set")) return "windowcoverings_set";
+        case 'open':
+          if (caps.includes('windowcoverings_set')) return 'windowcoverings_set';
           break;
-        case "close":
-          if (caps.includes("windowcoverings_set")) return "windowcoverings_set";
+        case 'close':
+          if (caps.includes('windowcoverings_set')) return 'windowcoverings_set';
           break;
-        case "lock":
-          if (caps.includes("locked")) return "locked";
+        case 'lock':
+          if (caps.includes('locked')) return 'locked';
           break;
-        case "unlock":
-          if (caps.includes("locked")) return "locked";
+        case 'unlock':
+          if (caps.includes('locked')) return 'locked';
           break;
-        case "speaker_next":
-          if (caps.includes("speaker_next")) return "speaker_next";
+        case 'speaker_next':
+          if (caps.includes('speaker_next')) return 'speaker_next';
           break;
-        case "speaker_prev":
-          if (caps.includes("speaker_prev")) return "speaker_prev";
+        case 'speaker_prev':
+          if (caps.includes('speaker_prev')) return 'speaker_prev';
           break;
-        case "play_music":
-          if (caps.includes("speaker_playing")) return "speaker_playing";
+        case 'play_music':
+          if (caps.includes('speaker_playing')) return 'speaker_playing';
           break;
-        case "stop_music":
-          if (caps.includes("speaker_playing")) return "speaker_playing";
+        case 'stop_music':
+          if (caps.includes('speaker_playing')) return 'speaker_playing';
           break;
       }
 
@@ -576,30 +612,30 @@ class ChatGPTAssistant extends Homey.App {
     // Enhanced value determination for different command types
     function getValueForCommand(command, parameters = {}) {
       switch (command) {
-        case "turn_on":
+        case 'turn_on':
           return true;
-        case "turn_off":
+        case 'turn_off':
           return false;
-        case "open":
+        case 'open':
           return 1; // Fully open
-        case "close":
+        case 'close':
           return 0; // Fully closed
-        case "lock":
+        case 'lock':
           return true;
-        case "unlock":
+        case 'unlock':
           return false;
-        case "dim":
+        case 'dim':
           // Use provided value or default to 50%
           return parameters.dim_level || 0.5;
-        case "set_temperature":
+        case 'set_temperature':
           // Use provided temperature or default to 21°C
           return parameters.temperature || 21;
-        case "speaker_next":
-        case "speaker_prev":
+        case 'speaker_next':
+        case 'speaker_prev':
           return true; // Trigger action
-        case "play_music":
+        case 'play_music':
           return true; // Start playing
-        case "stop_music":
+        case 'stop_music':
           return false; // Stop playing
         default:
           // For boolean capabilities, default to true
@@ -668,18 +704,18 @@ class ChatGPTAssistant extends Homey.App {
 
         for (const [foreignWord, englishWords] of Object.entries(translations)) {
           // Check if room query is in foreign language and zone name is in English
-          if (roomQuery.includes(foreignWord.toLowerCase()) &&
-              englishWords.some(e => zoneName.includes(e.toLowerCase()))) {
+          if (roomQuery.includes(foreignWord.toLowerCase())
+              && englishWords.some(e => zoneName.includes(e.toLowerCase()))) {
             return true;
           }
           // Check if zone name is in foreign language and room query is in English
-          if (zoneName.includes(foreignWord.toLowerCase()) &&
-              englishWords.some(e => roomQuery.includes(e.toLowerCase()))) {
+          if (zoneName.includes(foreignWord.toLowerCase())
+              && englishWords.some(e => roomQuery.includes(e.toLowerCase()))) {
             return true;
           }
           // Check if both are in English but different variations
-          if (englishWords.some(e => roomQuery.includes(e.toLowerCase())) &&
-              englishWords.some(e => zoneName.includes(e.toLowerCase()))) {
+          if (englishWords.some(e => roomQuery.includes(e.toLowerCase()))
+              && englishWords.some(e => zoneName.includes(e.toLowerCase()))) {
             return true;
           }
         }
@@ -707,14 +743,14 @@ class ChatGPTAssistant extends Homey.App {
       if (jsonCommand.device_filter) {
         // Explicit device filter specified
         const filteredDevices = targetDevices.filter(device => {
-          if (jsonCommand.device_filter === "light") {
-            return device.class === "light";
-          } else if (jsonCommand.device_filter === "speaker") {
-            return device.class === "speaker";
-          } else if (jsonCommand.device_filter === "socket") {
-            return device.class === "socket";
-          } else if (jsonCommand.device_filter === "thermostat") {
-            return device.class === "thermostat";
+          if (jsonCommand.device_filter === 'light') {
+            return device.class === 'light';
+          } if (jsonCommand.device_filter === 'speaker') {
+            return device.class === 'speaker';
+          } if (jsonCommand.device_filter === 'socket') {
+            return device.class === 'socket';
+          } if (jsonCommand.device_filter === 'thermostat') {
+            return device.class === 'thermostat';
           }
           return device.class === jsonCommand.device_filter;
         });
@@ -725,13 +761,13 @@ class ChatGPTAssistant extends Homey.App {
         }
       }
       // Fallback to original smart filtering for commands without explicit filter
-      else if (jsonCommand.command === "turn_on" || jsonCommand.command === "turn_off") {
+      else if (jsonCommand.command === 'turn_on' || jsonCommand.command === 'turn_off') {
         // Get the original command text from the preprocessing
-        const originalCommand = this.lastProcessedCommand || "";
+        const originalCommand = this.lastProcessedCommand || '';
 
         // If the original command mentions lights/lamps specifically, filter to lights only
         if (/light|lights|lamp|lamps|ljus|lampa|lampor|ligt|ligts|belysning/i.test(originalCommand)) {
-          const lightDevices = targetDevices.filter(device => device.class === "light");
+          const lightDevices = targetDevices.filter(device => device.class === 'light');
           if (lightDevices.length > 0) {
             this.log(`Filtering to lights only based on command: "${originalCommand}"`);
             targetDevices = lightDevices;
@@ -739,10 +775,8 @@ class ChatGPTAssistant extends Homey.App {
         }
         // If no specific device type mentioned, but it's a generic room command, prefer lights
         else if (!/socket|speaker|tv|camera|lock|sensor|thermostat/i.test(originalCommand)) {
-          const lightDevices = targetDevices.filter(device => device.class === "light");
-          const controllableDevices = targetDevices.filter(device =>
-            isControllableDeviceClass(device.class)
-          );
+          const lightDevices = targetDevices.filter(device => device.class === 'light');
+          const controllableDevices = targetDevices.filter(device => isControllableDeviceClass(device.class));
 
           // If we have lights and the command seems generic, prefer lights
           if (lightDevices.length > 0 && lightDevices.length >= controllableDevices.length * 0.3) {
@@ -766,64 +800,94 @@ class ChatGPTAssistant extends Homey.App {
         throw new Error(`No devices supporting "${jsonCommand.command}" found in "${jsonCommand.room}". Available device types: ${deviceClasses}`);
       }
 
-      let results = [];
-      let successCount = 0;
-
-      for (const device of targetDevices) {
+      // Parallel device processing for better performance
+      const devicePromises = targetDevices.map(async (device) => {
         try {
           const cap = getCapabilityForCommand(device, jsonCommand.command);
           if (!cap) {
-            results.push(`⚠️ ${device.name}: doesn't support ${jsonCommand.command}`);
-            continue;
+            return { device: device.name, success: false, message: `doesn't support ${jsonCommand.command}`, icon: '⚠️' };
           }
 
           const value = getValueForCommand(jsonCommand.command, jsonCommand.parameters);
           await device.setCapabilityValue(cap, value);
-          results.push(`✅ ${device.name}: ${jsonCommand.command} successful`);
-          successCount++;
+          return { device: device.name, success: true, message: `${jsonCommand.command} successful`, icon: '✅' };
         } catch (error) {
-          results.push(`❌ ${device.name}: ${error.message}`);
+          return { device: device.name, success: false, message: error.message, icon: '❌' };
         }
-      }
+      });
+
+      // Wait for all device operations to complete
+      const deviceResults = await Promise.allSettled(devicePromises);
+
+      // Process results and count successes
+      const results = [];
+      let successCount = 0;
+
+      deviceResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          const deviceResult = result.value;
+          results.push(`${deviceResult.icon} ${deviceResult.device}: ${deviceResult.message}`);
+          if (deviceResult.success) successCount++;
+        } else {
+          // Handle promise rejection (shouldn't happen with our error handling, but safety first)
+          const deviceName = targetDevices[index]?.name || 'Unknown device';
+          results.push(`❌ ${deviceName}: Promise rejected - ${result.reason?.message || 'Unknown error'}`);
+        }
+      });
 
       const summary = `${successCount}/${targetDevices.length} devices updated in ${jsonCommand.room}`;
       return `${summary}\n${results.join('\n')}`;
     }
     // ---------- Multiple Device IDs Command Branch ----------
-    else if (jsonCommand.device_ids) {
+    if (jsonCommand.device_ids) {
       const devicesObj = await this.getDevicesMapping();
       const devices = Object.values(devicesObj);
-      let results = [];
-      let successCount = 0;
 
-      for (const id of jsonCommand.device_ids) {
+      // Parallel processing for multiple device IDs
+      const devicePromises = jsonCommand.device_ids.map(async (id) => {
         const device = devices.find(d => d.id === id);
         if (!device) {
-          results.push(`❌ Device ${id}: not found`);
-          continue;
+          return { device: `Device ${id}`, success: false, message: 'not found', icon: '❌' };
         }
 
         try {
           const cap = getCapabilityForCommand(device, jsonCommand.command);
           if (!cap) {
-            results.push(`⚠️ ${device.name}: doesn't support ${jsonCommand.command}`);
-            continue;
+            return { device: device.name, success: false, message: `doesn't support ${jsonCommand.command}`, icon: '⚠️' };
           }
 
           const value = getValueForCommand(jsonCommand.command, jsonCommand.parameters);
           await device.setCapabilityValue(cap, value);
-          results.push(`✅ ${device.name}: ${jsonCommand.command} successful`);
-          successCount++;
+          return { device: device.name, success: true, message: `${jsonCommand.command} successful`, icon: '✅' };
         } catch (error) {
-          results.push(`❌ ${device.name}: ${error.message}`);
+          return { device: device.name, success: false, message: error.message, icon: '❌' };
         }
-      }
+      });
+
+      // Wait for all device operations to complete
+      const deviceResults = await Promise.allSettled(devicePromises);
+
+      // Process results and count successes
+      const results = [];
+      let successCount = 0;
+
+      deviceResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          const deviceResult = result.value;
+          results.push(`${deviceResult.icon} ${deviceResult.device}: ${deviceResult.message}`);
+          if (deviceResult.success) successCount++;
+        } else {
+          // Handle promise rejection
+          const deviceId = jsonCommand.device_ids[index];
+          results.push(`❌ Device ${deviceId}: Promise rejected - ${result.reason?.message || 'Unknown error'}`);
+        }
+      });
 
       const summary = `${successCount}/${jsonCommand.device_ids.length} devices updated`;
       return `${summary}\n${results.join('\n')}`;
     }
     // ---------- Single Device Command Branch ----------
-    else if (jsonCommand.device_id) {
+    if (jsonCommand.device_id) {
       const devicesObj = await this.getDevicesMapping();
       const devices = Object.values(devicesObj);
       const device = devices.find(d => d.id === jsonCommand.device_id);
@@ -872,6 +936,19 @@ class ChatGPTAssistant extends Homey.App {
       return;
     }
     this.log('Settings loaded.');
+
+    // Initialize secure key management
+    try {
+      this.log('Initializing secure key management...');
+      initializeKeys({
+        openaiApiKey: openaiKey,
+        telegramBotToken: telegramToken
+      });
+      this.log('API keys stored securely.');
+    } catch (error) {
+      this.error('Failed to initialize secure key management:', error.message);
+      throw error;
+    }
 
     // List and map devices (minimal logging).
     await this.listAllDevices();

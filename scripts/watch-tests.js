@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 'use strict';
 
 /**
@@ -67,7 +68,7 @@ class TestWatcher {
 
   watchDirectory(dirPath) {
     const fullPath = path.resolve(dirPath);
-    
+
     if (!fs.existsSync(fullPath)) {
       log(`⚠️  Directory not found: ${dirPath}`, 'yellow');
       return;
@@ -108,9 +109,9 @@ class TestWatcher {
 
   setupManualRestart() {
     process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (data) => {
+    process.stdin.on('data', data => {
       const input = data.toString().trim().toLowerCase();
-      
+
       if (input === 'rs' || input === 'restart') {
         log('🔄 Manual restart triggered', 'yellow');
         this.runTests('Manual restart');
@@ -155,7 +156,7 @@ class TestWatcher {
     try {
       // Run unit tests first (fastest)
       const unitResult = await this.runTestSuite('Unit Tests', 'npm run test:unit');
-      
+
       if (unitResult.success) {
         // If unit tests pass, run integration tests
         await this.runTestSuite('Integration Tests', 'npm run test:integration');
@@ -174,29 +175,29 @@ class TestWatcher {
 
   async runTestSuite(name, command) {
     log(`\n🔧 Running ${name}...`, 'blue');
-    
-    return new Promise((resolve) => {
+
+    return new Promise(resolve => {
       const startTime = Date.now();
       const [cmd, ...args] = command.split(' ');
-      const child = spawn(cmd, args, { 
+      const child = spawn(cmd, args, {
         stdio: 'pipe',
-        shell: true 
+        shell: true
       });
 
       let output = '';
       let hasOutput = false;
 
-      child.stdout.on('data', (data) => {
+      child.stdout.on('data', data => {
         output += data.toString();
         hasOutput = true;
       });
 
-      child.stderr.on('data', (data) => {
+      child.stderr.on('data', data => {
         output += data.toString();
         hasOutput = true;
       });
 
-      child.on('close', (code) => {
+      child.on('close', code => {
         const duration = Date.now() - startTime;
         const success = code === 0;
 
@@ -204,17 +205,15 @@ class TestWatcher {
           log(`✅ ${name} passed (${(duration / 1000).toFixed(2)}s)`, 'green');
         } else {
           log(`❌ ${name} failed (${(duration / 1000).toFixed(2)}s)`, 'red');
-          
+
           // Show relevant error output
           if (hasOutput) {
             const lines = output.split('\n');
-            const errorLines = lines.filter(line => 
-              line.includes('failing') || 
-              line.includes('Error:') ||
-              line.includes('AssertionError') ||
-              line.includes('✗') ||
-              line.includes('❌')
-            ).slice(0, 5); // Show first 5 error lines
+            const errorLines = lines.filter(line => line.includes('failing')
+              || line.includes('Error:')
+              || line.includes('AssertionError')
+              || line.includes('✗')
+              || line.includes('❌')).slice(0, 5); // Show first 5 error lines
 
             if (errorLines.length > 0) {
               log('📋 Error summary:', 'yellow');
@@ -228,7 +227,7 @@ class TestWatcher {
         resolve({ success, duration, output });
       });
 
-      child.on('error', (error) => {
+      child.on('error', error => {
         log(`❌ ${name} execution error: ${error.message}`, 'red');
         resolve({ success: false, duration: 0, output: '' });
       });
@@ -237,7 +236,7 @@ class TestWatcher {
 
   stop() {
     log('🛑 Stopping test watcher...', 'yellow');
-    
+
     // Close all watchers
     this.watchers.forEach((watcher, dir) => {
       try {
@@ -249,7 +248,7 @@ class TestWatcher {
     });
 
     this.watchers.clear();
-    
+
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }

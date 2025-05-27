@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 'use strict';
 
 /**
@@ -25,7 +26,7 @@ const mockHomeState = {
       },
       available: true,
       setCapabilityValue: async () => true,
-      getCapabilityValue: async (cap) => {
+      getCapabilityValue: async cap => {
         if (cap === 'onoff') return true;
         if (cap === 'dim') return 0.8;
         return null;
@@ -43,7 +44,7 @@ const mockHomeState = {
       },
       available: true,
       setCapabilityValue: async () => true,
-      getCapabilityValue: async (cap) => {
+      getCapabilityValue: async cap => {
         if (cap === 'onoff') return false;
         if (cap === 'dim') return 0.0;
         return null;
@@ -61,7 +62,7 @@ const mockHomeState = {
       },
       available: true,
       setCapabilityValue: async () => true,
-      getCapabilityValue: async (cap) => {
+      getCapabilityValue: async cap => {
         if (cap === 'target_temperature') return 22;
         if (cap === 'measure_temperature') return 21.5;
         return null;
@@ -79,7 +80,7 @@ const mockHomeState = {
       },
       available: false, // Offline device
       setCapabilityValue: async () => true,
-      getCapabilityValue: async (cap) => {
+      getCapabilityValue: async cap => {
         if (cap === 'speaker_playing') return true;
         if (cap === 'volume_set') return 0.6;
         return null;
@@ -98,67 +99,67 @@ const mockHomeState = {
 const testCases = [
   // English status queries
   {
-    query: "What's the status of the kitchen lights?",
-    language: "en",
-    description: "English device type in room query"
+    query: 'What\'s the status of the kitchen lights?',
+    language: 'en',
+    description: 'English device type in room query'
   },
   {
-    query: "Show me all devices in the bedroom",
-    language: "en", 
-    description: "English room status query"
+    query: 'Show me all devices in the bedroom',
+    language: 'en',
+    description: 'English room status query'
   },
   {
-    query: "Is the thermostat on?",
-    language: "en",
-    description: "English device type query"
+    query: 'Is the thermostat on?',
+    language: 'en',
+    description: 'English device type query'
   },
   {
-    query: "Tell me about all devices",
-    language: "en",
-    description: "English global status query"
+    query: 'Tell me about all devices',
+    language: 'en',
+    description: 'English global status query'
   },
-  
+
   // Swedish status queries
   {
-    query: "Vad är status på vardagsrummet?",
-    language: "sv",
-    description: "Swedish room status query"
+    query: 'Vad är status på vardagsrummet?',
+    language: 'sv',
+    description: 'Swedish room status query'
   },
   {
-    query: "Visa alla enheter i trädgården",
-    language: "sv",
-    description: "Swedish room status with character variations"
+    query: 'Visa alla enheter i trädgården',
+    language: 'sv',
+    description: 'Swedish room status with character variations'
   },
   {
-    query: "Hur är ljuset i köket?",
-    language: "sv",
-    description: "Swedish device type in room query"
+    query: 'Hur är ljuset i köket?',
+    language: 'sv',
+    description: 'Swedish device type in room query'
   },
-  
+
   // French status queries
   {
-    query: "Quel est l'état de tous les appareils?",
-    language: "fr",
-    description: "French global status query"
+    query: 'Quel est l\'état de tous les appareils?',
+    language: 'fr',
+    description: 'French global status query'
   },
   {
-    query: "Montre-moi les appareils dans la chambre",
-    language: "fr",
-    description: "French room status query"
+    query: 'Montre-moi les appareils dans la chambre',
+    language: 'fr',
+    description: 'French room status query'
   },
-  
+
   // German status queries
   {
-    query: "Wie ist der Status der Lichter im Schlafzimmer?",
-    language: "de",
-    description: "German device type in room query"
+    query: 'Wie ist der Status der Lichter im Schlafzimmer?',
+    language: 'de',
+    description: 'German device type in room query'
   },
-  
+
   // Spanish status queries
   {
-    query: "Muestra todos los dispositivos en la cocina",
-    language: "es",
-    description: "Spanish room status query"
+    query: 'Muestra todos los dispositivos en la cocina',
+    language: 'es',
+    description: 'Spanish room status query'
   }
 ];
 
@@ -166,12 +167,12 @@ console.log('🔍 Testing Multilingual Status Query System\n');
 
 // Test 1: Status Query Detection
 console.log('1. Testing Status Query Detection:');
-console.log('=' .repeat(50));
+console.log('='.repeat(50));
 
 testCases.forEach((testCase, index) => {
   const isStatus = isStatusQuery(testCase.query, testCase.language);
   const parsed = parseStatusQuery(testCase.query, testCase.language);
-  
+
   console.log(`\nTest ${index + 1}: ${testCase.description}`);
   console.log(`Query: "${testCase.query}"`);
   console.log(`Detected as status query: ${isStatus ? '✅' : '❌'}`);
@@ -183,67 +184,67 @@ testCases.forEach((testCase, index) => {
 
 // Test 2: Status Query Processing
 console.log('\n\n2. Testing Status Query Processing:');
-console.log('=' .repeat(50));
+console.log('='.repeat(50));
 
 // Mock LLM function for testing
 async function mockLLMFunction(prompt) {
   // Simple mock that handles basic semantic matching
   if (prompt.includes('"kitchen"') && prompt.includes('"Kitchen"')) {
     return JSON.stringify({
-      match: "Kitchen",
+      match: 'Kitchen',
       confidence: 0.9,
-      reasoning: "Exact match"
+      reasoning: 'Exact match'
     });
   }
-  
+
   if (prompt.includes('"vardagsrummet"') && prompt.includes('"Vardagsrummet"')) {
     return JSON.stringify({
-      match: "Vardagsrummet",
+      match: 'Vardagsrummet',
       confidence: 0.95,
-      reasoning: "Exact match with Swedish room name"
+      reasoning: 'Exact match with Swedish room name'
     });
   }
-  
+
   if (prompt.includes('"trädgården"') && prompt.includes('"Trägården"')) {
     return JSON.stringify({
-      match: "Trägården",
+      match: 'Trägården',
       confidence: 0.87,
-      reasoning: "Character variation match"
+      reasoning: 'Character variation match'
     });
   }
-  
+
   if (prompt.includes('"bedroom"') && prompt.includes('"Bedroom"')) {
     return JSON.stringify({
-      match: "Bedroom",
+      match: 'Bedroom',
       confidence: 0.9,
-      reasoning: "Exact match"
+      reasoning: 'Exact match'
     });
   }
-  
+
   return JSON.stringify({
     match: null,
     confidence: 0.0,
-    reasoning: "No match found"
+    reasoning: 'No match found'
   });
 }
 
 // Test specific status queries
 const processingTests = [
   {
-    query: "What's the status of kitchen lights?",
-    language: "en"
+    query: 'What\'s the status of kitchen lights?',
+    language: 'en'
   },
   {
-    query: "Show me all devices in vardagsrummet",
-    language: "sv"
+    query: 'Show me all devices in vardagsrummet',
+    language: 'sv'
   },
   {
-    query: "Visa enheter i trädgården",
-    language: "sv"
+    query: 'Visa enheter i trädgården',
+    language: 'sv'
   },
   {
-    query: "Tell me about all devices",
-    language: "en"
+    query: 'Tell me about all devices',
+    language: 'en'
   }
 ];
 
@@ -251,7 +252,7 @@ const processingTests = [
   for (const test of processingTests) {
     console.log(`\nProcessing: "${test.query}" (${test.language})`);
     console.log('-'.repeat(40));
-    
+
     try {
       const result = await handleStatusQuery(
         test.query,
@@ -260,7 +261,7 @@ const processingTests = [
         mockLLMFunction,
         { includeDetails: true, maxDevices: 10 }
       );
-      
+
       if (result.success) {
         console.log('✅ Success!');
         console.log(`Type: ${result.type}`);
@@ -275,15 +276,15 @@ const processingTests = [
       console.log('❌ Error:', error.message);
     }
   }
-  
+
   console.log('\n\n3. Testing Status Formatting:');
-  console.log('=' .repeat(50));
-  
+  console.log('='.repeat(50));
+
   // Test status formatting directly
   const mockRoomStatus = {
     success: true,
-    roomName: "kitchen",
-    matchedRoom: "Kitchen",
+    roomName: 'kitchen',
+    matchedRoom: 'Kitchen',
     deviceCount: 1,
     devices: [
       {
@@ -297,15 +298,15 @@ const processingTests = [
     matchConfidence: 0.9,
     matchMethod: 'exact'
   };
-  
+
   console.log('\nEnglish formatting:');
   console.log(formatRoomStatus(mockRoomStatus, 'en', true));
-  
+
   console.log('\nSwedish formatting:');
   console.log(formatRoomStatus(mockRoomStatus, 'sv', true));
-  
+
   console.log('\nFrench formatting:');
   console.log(formatRoomStatus(mockRoomStatus, 'fr', true));
-  
+
   console.log('\n✨ Status query testing completed!');
 })();

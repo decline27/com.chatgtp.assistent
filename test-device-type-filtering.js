@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 'use strict';
 
 /**
@@ -19,7 +20,7 @@ const mockHomeState = {
       zone: 'living_room_zone',
       capabilities: ['onoff', 'dim'],
       available: true,
-      getCapabilityValue: async (cap) => {
+      getCapabilityValue: async cap => {
         if (cap === 'onoff') return true;
         if (cap === 'dim') return 0.8;
         return null;
@@ -32,7 +33,7 @@ const mockHomeState = {
       zone: 'living_room_zone',
       capabilities: ['onoff', 'dim'],
       available: true,
-      getCapabilityValue: async (cap) => {
+      getCapabilityValue: async cap => {
         if (cap === 'onoff') return false;
         if (cap === 'dim') return 0.0;
         return null;
@@ -45,7 +46,7 @@ const mockHomeState = {
       zone: 'living_room_zone',
       capabilities: ['onoff', 'dim'],
       available: true,
-      getCapabilityValue: async (cap) => {
+      getCapabilityValue: async cap => {
         if (cap === 'onoff') return true;
         if (cap === 'dim') return 0.6;
         return null;
@@ -58,7 +59,7 @@ const mockHomeState = {
       zone: 'living_room_zone',
       capabilities: ['onoff'],
       available: false,
-      getCapabilityValue: async (cap) => {
+      getCapabilityValue: async cap => {
         if (cap === 'onoff') return false;
         return null;
       }
@@ -70,7 +71,7 @@ const mockHomeState = {
       zone: 'kitchen_zone',
       capabilities: ['onoff', 'dim'],
       available: true,
-      getCapabilityValue: async (cap) => {
+      getCapabilityValue: async cap => {
         if (cap === 'onoff') return true;
         if (cap === 'dim') return 0.9;
         return null;
@@ -87,15 +88,15 @@ const mockHomeState = {
 async function mockLLMFunction(prompt) {
   if (prompt.includes('"living room"') && prompt.includes('"Living Room"')) {
     return JSON.stringify({
-      match: "Living Room",
+      match: 'Living Room',
       confidence: 1.0,
-      reasoning: "Exact match"
+      reasoning: 'Exact match'
     });
   }
   return JSON.stringify({
     match: null,
     confidence: 0.0,
-    reasoning: "No match"
+    reasoning: 'No match'
   });
 }
 
@@ -103,7 +104,7 @@ console.log('🔧 Testing Device Type Filtering Fix\n');
 
 // Test 1: Direct device type status function
 console.log('1. Testing getDeviceTypeStatus function directly:');
-console.log('=' .repeat(60));
+console.log('='.repeat(60));
 
 (async () => {
   try {
@@ -117,20 +118,20 @@ console.log('=' .repeat(60));
       'en',
       mockLLMFunction
     );
-    
+
     console.log(`✅ Success: ${result.success}`);
     console.log(`Device Count: ${result.deviceCount}`);
     console.log(`Summary: ${result.summary}`);
-    
+
     if (result.devices && result.devices.length > 0) {
       console.log('\nFound Devices:');
       result.devices.forEach(device => {
         console.log(`  • ${device.name} (${device.class}): ${device.summary}`);
       });
     }
-    
+
     // Test 2: Get all lights (no room filter)
-    console.log('\n' + '-'.repeat(40));
+    console.log(`\n${'-'.repeat(40)}`);
     console.log('\nTest: Get all lights (no room filter)');
     const allLightsResult = await getDeviceTypeStatus(
       'light',
@@ -140,38 +141,38 @@ console.log('=' .repeat(60));
       'en',
       mockLLMFunction
     );
-    
+
     console.log(`✅ Success: ${allLightsResult.success}`);
     console.log(`Device Count: ${allLightsResult.deviceCount}`);
     console.log(`Summary: ${allLightsResult.summary}`);
-    
+
     // Test 3: Full status query processing
     console.log('\n\n2. Testing Full Status Query Processing:');
-    console.log('=' .repeat(60));
-    
+    console.log('='.repeat(60));
+
     const testQueries = [
       {
-        query: "är det någon ljus på i vardagsrummet?",
-        language: "sv",
-        description: "Swedish: Are there any lights on in living room?"
+        query: 'är det någon ljus på i vardagsrummet?',
+        language: 'sv',
+        description: 'Swedish: Are there any lights on in living room?'
       },
       {
-        query: "What's the status of lights in living room?",
-        language: "en",
-        description: "English: Status of lights in living room"
+        query: 'What\'s the status of lights in living room?',
+        language: 'en',
+        description: 'English: Status of lights in living room'
       },
       {
-        query: "Show me all lights",
-        language: "en",
-        description: "English: All lights globally"
+        query: 'Show me all lights',
+        language: 'en',
+        description: 'English: All lights globally'
       }
     ];
-    
+
     for (const test of testQueries) {
       console.log(`\nTest: ${test.description}`);
       console.log(`Query: "${test.query}"`);
       console.log('-'.repeat(40));
-      
+
       try {
         const result = await handleStatusQuery(
           test.query,
@@ -180,7 +181,7 @@ console.log('=' .repeat(60));
           mockLLMFunction,
           { includeDetails: true }
         );
-        
+
         if (result.success) {
           console.log('✅ Success!');
           console.log(`Type: ${result.type}`);
@@ -195,9 +196,9 @@ console.log('=' .repeat(60));
         console.log('❌ Error:', error.message);
       }
     }
-    
+
     console.log('\n✨ Device type filtering test completed!');
-    
+
   } catch (error) {
     console.error('Test failed:', error);
   }

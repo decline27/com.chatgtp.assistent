@@ -136,7 +136,7 @@ describe('Advanced Multilingual Matcher', function() {
 
     it('should find exact matches with high confidence', function() {
       const result = fuzzyMatch('Kitchen', candidates, 'en');
-      
+
       expect(result).to.have.property('match', 'Kitchen');
       expect(result).to.have.property('confidence', 1.0);
       expect(result).to.have.property('method', 'exact');
@@ -144,7 +144,7 @@ describe('Advanced Multilingual Matcher', function() {
 
     it('should find close matches with good confidence', function() {
       const result = fuzzyMatch('kithen', candidates, 'en'); // Typo
-      
+
       expect(result).to.have.property('match', 'Kitchen');
       expect(result).to.have.property('confidence').above(0.8);
       expect(result).to.have.property('method', 'similarity');
@@ -152,28 +152,28 @@ describe('Advanced Multilingual Matcher', function() {
 
     it('should handle Swedish room names', function() {
       const result = fuzzyMatch('vardagsrum', candidates, 'sv');
-      
+
       expect(result).to.have.property('match', 'Vardagsrummet');
       expect(result).to.have.property('confidence').above(0.7);
     });
 
     it('should handle character variations', function() {
       const result = fuzzyMatch('tradgarden', candidates, 'sv');
-      
+
       expect(result).to.have.property('match', 'Trägården');
       expect(result).to.have.property('confidence').above(0.6);
     });
 
     it('should return null for no good matches', function() {
       const result = fuzzyMatch('completely_different', candidates, 'en');
-      
+
       expect(result).to.have.property('match', null);
       expect(result).to.have.property('confidence', 0);
     });
 
     it('should handle empty candidates', function() {
       const result = fuzzyMatch('kitchen', [], 'en');
-      
+
       expect(result).to.have.property('match', null);
       expect(result).to.have.property('confidence', 0);
       expect(result).to.have.property('method', 'none');
@@ -181,7 +181,7 @@ describe('Advanced Multilingual Matcher', function() {
 
     it('should handle empty input', function() {
       const result = fuzzyMatch('', candidates, 'en');
-      
+
       expect(result).to.have.property('match', null);
       expect(result).to.have.property('confidence', 0);
     });
@@ -192,7 +192,7 @@ describe('Advanced Multilingual Matcher', function() {
 
     it('should find best room match with exact name', function() {
       const result = findBestRoomMatch('Kitchen', availableRooms, 'en');
-      
+
       expect(result).to.have.property('match', 'Kitchen');
       expect(result).to.have.property('confidence', 1.0);
       expect(result).to.have.property('method', 'exact');
@@ -200,21 +200,21 @@ describe('Advanced Multilingual Matcher', function() {
 
     it('should find best room match with fuzzy matching', function() {
       const result = findBestRoomMatch('kithen', availableRooms, 'en');
-      
+
       expect(result).to.have.property('match', 'Kitchen');
       expect(result).to.have.property('confidence').above(0.8);
     });
 
     it('should handle Swedish room names with definite articles', function() {
       const result = findBestRoomMatch('vardagsrummet', availableRooms, 'sv');
-      
+
       expect(result).to.have.property('match', 'Vardagsrummet');
       expect(result).to.have.property('confidence').above(0.9);
     });
 
     it('should handle character variations in Swedish', function() {
       const result = findBestRoomMatch('tradgarden', availableRooms, 'sv');
-      
+
       expect(result).to.have.property('match', 'Trägården');
       expect(result).to.have.property('confidence').above(0.6);
     });
@@ -225,7 +225,7 @@ describe('Advanced Multilingual Matcher', function() {
 
     it('should use fuzzy matching for high confidence matches', async function() {
       const result = await comprehensiveRoomMatch('Kitchen', availableRooms, 'en');
-      
+
       expect(result).to.have.property('match', 'Kitchen');
       expect(result).to.have.property('confidence', 1.0);
       expect(result).to.have.property('method', 'exact');
@@ -233,20 +233,20 @@ describe('Advanced Multilingual Matcher', function() {
 
     it('should fall back to LLM for low confidence fuzzy matches', async function() {
       const result = await comprehensiveRoomMatch('living space', availableRooms, 'en', mockLLMFunction);
-      
+
       expect(result).to.have.property('match');
       expect(result).to.have.property('confidence');
       expect(result).to.have.property('method');
-      
+
       // Should have called the LLM function
       expect(mockLLMFunction.called).to.be.true;
     });
 
     it('should handle LLM function errors gracefully', async function() {
       const errorLLM = sinon.stub().rejects(new Error('LLM Error'));
-      
+
       const result = await comprehensiveRoomMatch('some room', availableRooms, 'en', errorLLM);
-      
+
       expect(result).to.have.property('match');
       expect(result).to.have.property('confidence');
       // Should fall back to fuzzy matching result
@@ -254,14 +254,14 @@ describe('Advanced Multilingual Matcher', function() {
 
     it('should work without LLM function', async function() {
       const result = await comprehensiveRoomMatch('Kitchen', availableRooms, 'en', null);
-      
+
       expect(result).to.have.property('match', 'Kitchen');
       expect(result).to.have.property('confidence', 1.0);
     });
 
     it('should handle Swedish room matching with LLM fallback', async function() {
       const result = await comprehensiveRoomMatch('vardagsrummet', availableRooms, 'sv', mockLLMFunction);
-      
+
       expect(result).to.have.property('match', 'Vardagsrummet');
       expect(result).to.have.property('confidence').above(0.8);
     });
@@ -271,36 +271,36 @@ describe('Advanced Multilingual Matcher', function() {
     it('should handle very long room names', function() {
       const longName = 'a'.repeat(1000);
       const candidates = ['Kitchen', 'Bedroom'];
-      
+
       const result = fuzzyMatch(longName, candidates, 'en');
-      
+
       expect(result).to.have.property('match', null);
       expect(result).to.have.property('confidence', 0);
     });
 
     it('should handle special characters in room names', function() {
       const candidates = ['Kitchen & Dining', 'Living-Room', 'Bed/Room'];
-      
+
       const result = fuzzyMatch('kitchen dining', candidates, 'en');
-      
+
       expect(result).to.have.property('match', 'Kitchen & Dining');
       expect(result).to.have.property('confidence').above(0.6);
     });
 
     it('should handle numeric room names', function() {
       const candidates = ['Room 1', 'Room 2', 'Room 3'];
-      
+
       const result = fuzzyMatch('room1', candidates, 'en');
-      
+
       expect(result).to.have.property('match', 'Room 1');
       expect(result).to.have.property('confidence').above(0.7);
     });
 
     it('should be case insensitive', function() {
       const candidates = ['Kitchen', 'BEDROOM', 'living room'];
-      
+
       const result = fuzzyMatch('KITCHEN', candidates, 'en');
-      
+
       expect(result).to.have.property('match', 'Kitchen');
       expect(result).to.have.property('confidence', 1.0);
     });

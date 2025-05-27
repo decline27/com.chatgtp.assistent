@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 'use strict';
 
 /**
@@ -80,19 +81,19 @@ function logSection(message) {
 async function runCommand(command, timeout = 30000) {
   return new Promise((resolve, reject) => {
     const [cmd, ...args] = command.split(' ');
-    const child = spawn(cmd, args, { 
+    const child = spawn(cmd, args, {
       stdio: 'pipe',
-      shell: true 
+      shell: true
     });
 
     let stdout = '';
     let stderr = '';
 
-    child.stdout.on('data', (data) => {
+    child.stdout.on('data', data => {
       stdout += data.toString();
     });
 
-    child.stderr.on('data', (data) => {
+    child.stderr.on('data', data => {
       stderr += data.toString();
     });
 
@@ -101,7 +102,7 @@ async function runCommand(command, timeout = 30000) {
       reject(new Error(`Command timed out after ${timeout}ms`));
     }, timeout);
 
-    child.on('close', (code) => {
+    child.on('close', code => {
       clearTimeout(timer);
       resolve({
         code,
@@ -111,7 +112,7 @@ async function runCommand(command, timeout = 30000) {
       });
     });
 
-    child.on('error', (error) => {
+    child.on('error', error => {
       clearTimeout(timer);
       reject(error);
     });
@@ -136,7 +137,7 @@ function parseTestResults(output) {
   if (passMatch) results.passed = parseInt(passMatch[1]);
   if (failMatch) results.failed = parseInt(failMatch[1]);
   if (skipMatch) results.skipped = parseInt(skipMatch[1]);
-  
+
   results.total = results.passed + results.failed + results.skipped;
 
   if (durationMatch) {
@@ -185,22 +186,22 @@ function generateReport(suiteResults) {
 
 function saveReport(report) {
   const reportsDir = path.join(__dirname, '..', 'test-reports');
-  
+
   if (!fs.existsSync(reportsDir)) {
     fs.mkdirSync(reportsDir, { recursive: true });
   }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const reportFile = path.join(reportsDir, `test-report-${timestamp}.json`);
-  
+
   fs.writeFileSync(reportFile, JSON.stringify(report, null, 2));
-  
+
   return reportFile;
 }
 
 function printSummary(report) {
   logHeader('TEST EXECUTION SUMMARY');
-  
+
   log(`Total Test Suites: ${report.summary.totalSuites}`);
   log(`Passed Suites: ${colorize(report.summary.passedSuites, 'green')}`);
   log(`Failed Suites: ${colorize(report.summary.failedSuites, 'red')}`);
@@ -211,22 +212,22 @@ function printSummary(report) {
   log(`Skipped: ${colorize(report.summary.skippedTests, 'yellow')}`);
   log('');
   log(`Total Duration: ${(report.summary.totalDuration / 1000).toFixed(2)}s`);
-  
+
   const successRate = ((report.summary.passedTests / report.summary.totalTests) * 100).toFixed(1);
-  log(`Success Rate: ${colorize(successRate + '%', successRate > 90 ? 'green' : successRate > 70 ? 'yellow' : 'red')}`);
-  
+  log(`Success Rate: ${colorize(`${successRate}%`, successRate > 90 ? 'green' : successRate > 70 ? 'yellow' : 'red')}`);
+
   log('');
   logSection('Suite Details');
-  
+
   Object.entries(report.suites).forEach(([suiteName, suite]) => {
     const status = suite.success ? colorize('✅ PASSED', 'green') : colorize('❌ FAILED', 'red');
     const duration = suite.results ? `(${(suite.results.duration / 1000).toFixed(2)}s)` : '';
     log(`${suite.name}: ${status} ${duration}`);
-    
+
     if (suite.results) {
       log(`  Tests: ${suite.results.passed}/${suite.results.total} passed`);
     }
-    
+
     if (!suite.success && suite.error) {
       log(`  Error: ${colorize(suite.error, 'red')}`);
     }
@@ -235,10 +236,10 @@ function printSummary(report) {
 
 async function runTestSuite(suiteName, suite) {
   logSection(`Running ${suite.name}`);
-  
+
   try {
     const result = await runCommand(suite.command, suite.timeout);
-    
+
     const suiteResult = {
       name: suite.name,
       command: suite.command,
@@ -263,7 +264,7 @@ async function runTestSuite(suiteName, suite) {
     return suiteResult;
   } catch (error) {
     log(`❌ ${suite.name} failed with error: ${error.message}`, 'red');
-    
+
     return {
       name: suite.name,
       command: suite.command,
@@ -278,9 +279,9 @@ async function runTestSuite(suiteName, suite) {
 async function main() {
   const args = process.argv.slice(2);
   const suitesToRun = args.length > 0 ? args : Object.keys(TEST_SUITES);
-  
+
   logHeader('HOMEY CHATGPT ASSISTANT - AUTOMATED TEST RUNNER');
-  
+
   log(`Running test suites: ${suitesToRun.join(', ')}`, 'cyan');
   log(`Start time: ${new Date().toISOString()}`, 'cyan');
   log('');
@@ -305,13 +306,13 @@ async function main() {
 
   const report = generateReport(suiteResults);
   const reportFile = saveReport(report);
-  
+
   log('');
   printSummary(report);
-  
+
   log('');
   log(`📊 Detailed report saved to: ${reportFile}`, 'cyan');
-  
+
   // Exit with error code if any tests failed
   const hasFailures = report.summary.failedSuites > 0 || report.summary.failedTests > 0;
   process.exit(hasFailures ? 1 : 0);

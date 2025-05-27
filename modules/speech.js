@@ -2,8 +2,8 @@
 
 const https = require('https');
 const fs = require('fs');
-
-let whisperApiKey = null;
+const { getKeyManager } = require('./secureKeyManager');
+const { ErrorHandler, ErrorTypes } = require('./errorHandler');
 
 // Supported languages for Whisper API (99+ languages)
 const SUPPORTED_LANGUAGES = {
@@ -141,12 +141,23 @@ const SUPPORTED_LANGUAGES = {
 /**
  * Initialize the Whisper API key.
  * @param {string} apiKey - The OpenAI API key for Whisper.
+ * @throws {StandardError} When validation fails
  */
 function initWhisper(apiKey) {
-  if (!apiKey) {
-    throw new Error('Whisper API key is required');
+  // Input validation
+  ErrorHandler.validateInput(apiKey && typeof apiKey === 'string', 'Whisper API key is required and must be a string');
+
+  try {
+    // Store API key securely (reuse the same OpenAI key)
+    const keyManager = getKeyManager();
+    if (!keyManager.hasKey('openai')) {
+      keyManager.setKey('openai', apiKey, 'openai');
+    }
+
+    console.log('Whisper module initialized securely');
+  } catch (error) {
+    throw ErrorHandler.wrap(error, ErrorTypes.AUTHENTICATION_ERROR, 'Failed to initialize Whisper');
   }
-  whisperApiKey = apiKey;
 }
 
 /**
@@ -154,7 +165,7 @@ function initWhisper(apiKey) {
  * @returns {string} A unique boundary string.
  */
 function generateBoundary() {
-  return '---------------------------' + Date.now().toString();
+  return `---------------------------${Date.now().toString()}`;
 }
 
 /**
@@ -203,7 +214,7 @@ function createFormData(input, boundary, language = 'auto') {
 
   parts.push(`--${boundary}--\r\n`);
 
-  return Buffer.concat(parts.map(part => typeof part === 'string' ? Buffer.from(part) : part));
+  return Buffer.concat(parts.map(part => (typeof part === 'string' ? Buffer.from(part) : part)));
 }
 
 /**
@@ -215,8 +226,13 @@ function createFormData(input, boundary, language = 'auto') {
  * @returns {Promise<Object>} - A promise that resolves to transcription result with text and detected language.
  */
 async function transcribeVoice(input, language = 'auto') {
-  if (!whisperApiKey) {
-    throw new Error('Whisper API key not initialized. Call initWhisper first.');
+  // Input validation
+  ErrorHandler.validateInput(input, 'Audio input is required');
+  ErrorHandler.validateInput(language && typeof language === 'string', 'Language must be a string');
+
+  const keyManager = getKeyManager();
+  if (!keyManager.hasKey('openai')) {
+    throw ErrorHandler.authentication('Whisper API key not initialized. Call initWhisper first.');
   }
 
   // Validate language code
@@ -226,56 +242,74 @@ async function transcribeVoice(input, language = 'auto') {
   }
 
   return new Promise((resolve, reject) => {
-    const boundary = generateBoundary();
-    const formData = createFormData(input, boundary, language);
+    try {
+      const boundary = generateBoundary();
+      const formData = createFormData(input, boundary, language);
 
-    const options = {
-      hostname: 'api.openai.com',
-      path: '/v1/audio/transcriptions',
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${whisperApiKey}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        'Content-Length': formData.length
-      }
-    };
+      // Create secure authorization header
+      const authHeader = keyManager.createAuthHeader('openai', 'Bearer');
 
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          if (res.statusCode !== 200) {
-            reject(new Error(`API request failed with status ${res.statusCode}: ${data}`));
-            return;
-          }
-          const response = JSON.parse(data);
-
-          if (response.text) {
-            // Return enhanced response with language information
-            const result = {
-              text: response.text,
-              language: response.language || language,
-              duration: response.duration || null,
-              confidence: response.confidence || null,
-              segments: response.segments || null
-            };
-            resolve(result);
-          } else {
-            reject(new Error('No transcription text in API response'));
-          }
-        } catch (error) {
-          reject(new Error(`Failed to parse API response: ${error.message}`));
+      const options = {
+        hostname: 'api.openai.com',
+        path: '/v1/audio/transcriptions',
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Content-Length': formData.length
         }
+      };
+
+      const req = https.request(options, res => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            if (res.statusCode !== 200) {
+              const error = ErrorHandler.api(`Whisper API request failed with status ${res.statusCode}`, {
+                statusCode: res.statusCode,
+                responseData: data.substring(0, 500)
+              });
+              reject(error);
+              return;
+            }
+            const response = JSON.parse(data);
+
+            if (response.text) {
+              // Return enhanced response with language information
+              const result = {
+                text: response.text,
+                language: response.language || language,
+                duration: response.duration || null,
+                confidence: response.confidence || null,
+                segments: response.segments || null
+              };
+              resolve(result);
+            } else {
+              const error = ErrorHandler.api('No transcription text in API response', { response });
+              reject(error);
+            }
+          } catch (parseError) {
+            const error = ErrorHandler.parsing(`Failed to parse Whisper API response: ${parseError.message}`, {
+              originalError: parseError.message,
+              responseLength: data.length
+            });
+            reject(error);
+          }
+        });
       });
-    });
 
-    req.on('error', (error) => {
-      reject(new Error(`Transcription request failed: ${error.message}`));
-    });
+      req.on('error', networkError => {
+        const error = ErrorHandler.network(`Transcription request failed: ${networkError.message}`);
+        reject(error);
+      });
 
-    req.write(formData);
-    req.end();
+      req.write(formData);
+      req.end();
+    } catch (error) {
+      const wrappedError = ErrorHandler.wrap(error, ErrorTypes.API_ERROR, 'Failed to setup transcription request');
+      reject(wrappedError);
+    }
   });
 }
 

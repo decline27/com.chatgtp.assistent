@@ -1,4 +1,5 @@
 'use strict';
+
 const { HomeyAPIV3 } = require('homey-api');
 
 /**
@@ -14,7 +15,7 @@ async function getHomeState(app) {
     }
     const devicesObj = await app._apiClient.devices.getDevices();
     const zones = await app._apiClient.zones.getZones();
-    return { devices: devicesObj, zones: zones };
+    return { devices: devicesObj, zones };
   } catch (error) {
     app.error('Failed to retrieve home state:', error);
     throw error;
@@ -33,7 +34,7 @@ async function getDevicesMapping(app) {
     return homeState.devices;
   } catch (error) {
     app.log('Falling back to drivers API for devices.');
-    let devicesObj = {};
+    const devicesObj = {};
     if (app.homey.drivers && typeof app.homey.drivers.getDrivers === 'function') {
       const drivers = app.homey.drivers.getDrivers();
       for (const driver of Object.values(drivers)) {

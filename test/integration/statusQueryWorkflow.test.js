@@ -111,7 +111,7 @@ describe('Status Query Workflow Integration', function() {
     TEST_CONFIG.languages.slice(0, 5).forEach(language => {
       it(`should handle ${language} status queries`, async function() {
         const queries = TestDataGenerators.generateStatusQueries(language);
-        
+
         for (const query of queries) {
           const result = await handleStatusQuery(
             query,
@@ -157,7 +157,7 @@ describe('Status Query Workflow Integration', function() {
 
     it('should handle empty home state', async function() {
       const emptyHomeState = { devices: {}, zones: {} };
-      
+
       const result = await handleStatusQuery(
         'Show me all devices',
         'en',
@@ -205,7 +205,7 @@ describe('Status Query Workflow Integration', function() {
     it('should handle large home states efficiently', async function() {
       // Create a large home state
       const largeHomeState = createMockHomeState();
-      
+
       // Add many devices
       for (let i = 0; i < 50; i++) {
         largeHomeState.devices[`device_${i}`] = {
@@ -242,9 +242,7 @@ describe('Status Query Workflow Integration', function() {
         'How are the lights?'
       ];
 
-      const promises = queries.map(query => 
-        handleStatusQuery(query, 'en', mockHomeState, mockLLMFunction)
-      );
+      const promises = queries.map(query => handleStatusQuery(query, 'en', mockHomeState, mockLLMFunction));
 
       const results = await Promise.all(promises);
 

@@ -70,7 +70,7 @@ async function getDeviceStatus(device) {
 function getCapabilityKeys(device) {
   if (device.capabilities && Array.isArray(device.capabilities)) {
     return device.capabilities;
-  } else if (device.capabilitiesObj && typeof device.capabilitiesObj === 'object') {
+  } if (device.capabilitiesObj && typeof device.capabilitiesObj === 'object') {
     return Object.keys(device.capabilitiesObj);
   }
   return [];
@@ -202,7 +202,7 @@ async function getRoomStatus(roomName, availableRooms, devices, zones, language 
     return {
       success: false,
       error: `Room "${roomName}" not found. Available rooms: ${availableRooms.join(', ')}`,
-      roomName: roomName,
+      roomName,
       matchedRoom: null
     };
   }
@@ -210,15 +210,13 @@ async function getRoomStatus(roomName, availableRooms, devices, zones, language 
   const matchedRoomName = roomMatch.match;
 
   // Find the zone ID for the matched room
-  const zoneId = Object.keys(zones).find(id =>
-    zones[id].name.toLowerCase() === matchedRoomName.toLowerCase()
-  );
+  const zoneId = Object.keys(zones).find(id => zones[id].name.toLowerCase() === matchedRoomName.toLowerCase());
 
   if (!zoneId) {
     return {
       success: false,
       error: `Zone not found for room "${matchedRoomName}"`,
-      roomName: roomName,
+      roomName,
       matchedRoom: matchedRoomName
     };
   }
@@ -229,7 +227,7 @@ async function getRoomStatus(roomName, availableRooms, devices, zones, language 
   if (roomDevices.length === 0) {
     return {
       success: true,
-      roomName: roomName,
+      roomName,
       matchedRoom: matchedRoomName,
       deviceCount: 0,
       devices: [],
@@ -246,7 +244,7 @@ async function getRoomStatus(roomName, availableRooms, devices, zones, language 
 
   return {
     success: true,
-    roomName: roomName,
+    roomName,
     matchedRoom: matchedRoomName,
     deviceCount: deviceStatuses.length,
     devices: deviceStatuses,
@@ -307,9 +305,7 @@ async function getDeviceTypeStatus(deviceType, devices, zones = null, roomFilter
 
     if (roomMatch.match && roomMatch.confidence >= 0.6) {
       // Find the zone ID for the matched room
-      const targetZoneId = Object.keys(zones).find(id =>
-        zones[id].name.toLowerCase() === roomMatch.match.toLowerCase()
-      );
+      const targetZoneId = Object.keys(zones).find(id => zones[id].name.toLowerCase() === roomMatch.match.toLowerCase());
 
       if (targetZoneId) {
         // Filter devices by zone ID
@@ -321,8 +317,8 @@ async function getDeviceTypeStatus(deviceType, devices, zones = null, roomFilter
   if (filteredDevices.length === 0) {
     return {
       success: true,
-      deviceType: deviceType,
-      roomFilter: roomFilter,
+      deviceType,
+      roomFilter,
       deviceCount: 0,
       devices: [],
       summary: `No ${deviceType} devices found${roomFilter ? ` in ${roomFilter}` : ''}`
@@ -338,8 +334,8 @@ async function getDeviceTypeStatus(deviceType, devices, zones = null, roomFilter
 
   return {
     success: true,
-    deviceType: deviceType,
-    roomFilter: roomFilter,
+    deviceType,
+    roomFilter,
     deviceCount: deviceStatuses.length,
     devices: deviceStatuses,
     summary: `Found ${deviceStatuses.length} ${deviceType} devices${roomFilter ? ` in ${roomFilter}` : ''}`

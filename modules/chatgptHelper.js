@@ -1,79 +1,131 @@
 'use strict';
 
-function constructPrompt(commandText, homeState) {
-	// Summarize zones (only id and name)
-	const zonesSummary = {};
-	for (const [zoneId, zone] of Object.entries(homeState.zones || {})) {
-		zonesSummary[zoneId] = zone.name;
-	}
+/**
+ * Construct a ChatGPT prompt with size limits to prevent exceeding API limits
+ * @param {string} commandText - The command text to process
+ * @param {Object} homeState - The home state containing devices and zones
+ * @param {Object} options - Optional configuration
+ * @returns {string} The constructed prompt
+ */
+function constructPrompt(commandText, homeState, options = {}) {
+  const { maxPromptLength = 9500, maxDevices = 50 } = options; // Leave buffer for safety
 
-	// Summarize devices: include id, name, zone, and class.
-	const devicesSummary = Object.values(homeState.devices || {}).map(device => ({
-		id: device.id,
-		name: device.name,
-		zone: device.zone,
-		class: device.class
-	}));
+  // Summarize zones (only id and name)
+  const zonesSummary = {};
+  for (const [zoneId, zone] of Object.entries(homeState.zones || {})) {
+    zonesSummary[zoneId] = zone.name;
+  }
 
-	// Enhanced device class mapping for better context and capability understanding
-	const deviceClassMapping = {
-		"light": {
-			"capabilities": ["onoff", "dim", "light_hue", "light_saturation", "light_temperature", "light_mode"],
-			"common_commands": ["turn_on", "turn_off", "dim"],
-			"description": "Lighting devices that can be turned on/off and often dimmed"
-		},
-		"socket": {
-			"capabilities": ["onoff"],
-			"common_commands": ["turn_on", "turn_off"],
-			"description": "Power outlets and smart plugs"
-		},
-		"speaker": {
-			"capabilities": ["speaker_playing", "speaker_next", "speaker_prev", "volume_set"],
-			"common_commands": ["turn_on", "turn_off", "speaker_next", "speaker_prev"],
-			"description": "Audio devices and speakers"
-		},
-		"thermostat": {
-			"capabilities": ["target_temperature", "measure_temperature"],
-			"common_commands": ["set_temperature"],
-			"description": "Temperature control devices"
-		},
-		"sensor": {
-			"capabilities": ["measure_temperature", "measure_humidity", "alarm_motion", "alarm_contact"],
-			"common_commands": [],
-			"description": "Sensors for monitoring (read-only)"
-		},
-		"fan": {
-			"capabilities": ["onoff", "fan_speed"],
-			"common_commands": ["turn_on", "turn_off"],
-			"description": "Fans and ventilation devices"
-		},
-		"curtain": {
-			"capabilities": ["windowcoverings_set", "windowcoverings_state"],
-			"common_commands": ["open", "close"],
-			"description": "Window coverings and blinds"
-		},
-		"lock": {
-			"capabilities": ["locked"],
-			"common_commands": ["lock", "unlock"],
-			"description": "Door locks and security devices"
-		},
-		"tv": {
-			"capabilities": ["onoff", "volume_set", "channel_up", "channel_down"],
-			"common_commands": ["turn_on", "turn_off"],
-			"description": "Television and entertainment devices"
-		}
-	};
+  // Summarize devices: include id, name, zone, and class.
+  // Limit the number of devices to prevent prompt overflow
+  const allDevices = Object.values(homeState.devices || {});
+  const limitedDevices = allDevices.slice(0, maxDevices);
 
-	const summary = {
-		zones: zonesSummary,
-		devices: devicesSummary,
-		deviceClassMapping: deviceClassMapping
-	};
+  const devicesSummary = limitedDevices.map(device => ({
+    id: device.id,
+    name: device.name,
+    zone: device.zone,
+    class: device.class
+  }));
 
-	return `You are a Homey home automation expert with multilingual support. Convert this natural language command into valid JSON.
+  // Enhanced device class mapping for better context and capability understanding
+  const deviceClassMapping = {
+    'light': {
+      'capabilities': ['onoff', 'dim', 'light_hue', 'light_saturation', 'light_temperature', 'light_mode'],
+      'common_commands': ['turn_on', 'turn_off', 'dim'],
+      'description': 'Lighting devices that can be turned on/off and often dimmed'
+    },
+    'socket': {
+      'capabilities': ['onoff'],
+      'common_commands': ['turn_on', 'turn_off'],
+      'description': 'Power outlets and smart plugs'
+    },
+    'speaker': {
+      'capabilities': ['speaker_playing', 'speaker_next', 'speaker_prev', 'volume_set'],
+      'common_commands': ['turn_on', 'turn_off', 'speaker_next', 'speaker_prev'],
+      'description': 'Audio devices and speakers'
+    },
+    'thermostat': {
+      'capabilities': ['target_temperature', 'measure_temperature'],
+      'common_commands': ['set_temperature'],
+      'description': 'Temperature control devices'
+    },
+    'sensor': {
+      'capabilities': ['measure_temperature', 'measure_humidity', 'alarm_motion', 'alarm_contact'],
+      'common_commands': [],
+      'description': 'Sensors for monitoring (read-only)'
+    },
+    'fan': {
+      'capabilities': ['onoff', 'fan_speed'],
+      'common_commands': ['turn_on', 'turn_off'],
+      'description': 'Fans and ventilation devices'
+    },
+    'curtain': {
+      'capabilities': ['windowcoverings_set', 'windowcoverings_state'],
+      'common_commands': ['open', 'close'],
+      'description': 'Window coverings and blinds'
+    },
+    'lock': {
+      'capabilities': ['locked'],
+      'common_commands': ['lock', 'unlock'],
+      'description': 'Door locks and security devices'
+    },
+    'tv': {
+      'capabilities': ['onoff', 'volume_set', 'channel_up', 'channel_down'],
+      'common_commands': ['turn_on', 'turn_off'],
+      'description': 'Television and entertainment devices'
+    }
+  };
+
+  const summary = {
+    zones: zonesSummary,
+    devices: devicesSummary,
+    deviceClassMapping
+  };
+
+  // Build the prompt and check size
+  let prompt = buildFullPrompt(commandText, summary, allDevices.length, limitedDevices.length);
+
+  // If prompt is too long, try with fewer devices
+  if (prompt.length > maxPromptLength) {
+    console.log(`Prompt too long (${prompt.length} chars), reducing devices from ${limitedDevices.length} to ${Math.floor(maxDevices / 2)}`);
+
+    const reducedDevices = limitedDevices.slice(0, Math.floor(maxDevices / 2));
+    const reducedSummary = {
+      zones: zonesSummary,
+      devices: reducedDevices.map(device => ({
+        id: device.id,
+        name: device.name,
+        zone: device.zone,
+        class: device.class
+      })),
+      deviceClassMapping
+    };
+
+    prompt = buildFullPrompt(commandText, reducedSummary, allDevices.length, reducedDevices.length);
+  }
+
+  // If still too long, use minimal prompt
+  if (prompt.length > maxPromptLength) {
+    console.log(`Prompt still too long (${prompt.length} chars), using minimal prompt`);
+    prompt = buildMinimalPrompt(commandText, zonesSummary);
+  }
+
+  console.log(`Final prompt length: ${prompt.length} characters`);
+  return prompt;
+}
+
+/**
+ * Build the full prompt with all context
+ */
+function buildFullPrompt(commandText, summary, totalDevices, includedDevices) {
+  const deviceLimitNote = totalDevices > includedDevices ?
+    `\n\nNOTE: Showing ${includedDevices} of ${totalDevices} total devices for brevity.` : '';
+
+  return `You are a Homey home automation expert with multilingual support. Convert this natural language command into valid JSON.
 
 AVAILABLE DEVICES AND ROOMS:
-${JSON.stringify(summary, null, 2)}
+${JSON.stringify(summary, null, 2)}${deviceLimitNote}
 
 COMMAND TO PROCESS: "${commandText}"
 
@@ -88,7 +140,12 @@ RESPONSE RULES:
 3. For MULTIPLE commands (with "and", "then", etc.), use:
    - Multi-command: {"commands": [{"room": "<room>", "command": "<action>", "device_filter": "<type>"}, ...]}
 
-4. For STATUS queries, use:
+4. DEVICE FILTERS (CRITICAL for Swedish commands):
+   - ALWAYS add "device_filter": "light" when command mentions lights/ljus/lampa
+   - Swedish "ljus" = English "light" → MUST use "device_filter": "light"
+   - Swedish "lampor" = English "lights" → MUST use "device_filter": "light"
+
+5. For STATUS queries, use:
    - Room status: {"query_type": "status", "room": "<room_name>"}
    - Device status: {"query_type": "status", "device": "<device_name>", "room": "<room_name>"}
    - Device type status: {"query_type": "status", "device_type": "<type>", "room": "<room_name>"}
@@ -133,7 +190,9 @@ EXAMPLES (German - note English room names in output):
 - "Schlafzimmer dimmen" → {"room": "bedroom", "command": "dim"}
 
 EXAMPLES (Swedish - note English room names in output):
-- "Sätt på vardagsrummet ljus" → {"room": "living room", "command": "turn_on"}
+- "Sätt på vardagsrummet ljus" → {"room": "living room", "command": "turn_on", "device_filter": "light"}
+- "Tänd ljuset i hela huset" → {"commands": [{"room": "living room", "command": "turn_on", "device_filter": "light"}, {"room": "bedroom", "command": "turn_on", "device_filter": "light"}]}
+- "Slå på allt ljuset" → {"commands": [{"room": "living room", "command": "turn_on", "device_filter": "light"}, {"room": "kitchen", "command": "turn_on", "device_filter": "light"}]}
 - "Stäng av sovrum" → {"room": "bedroom", "command": "turn_off"}
 
 EXAMPLES (Multi-command with English room names):
@@ -147,6 +206,40 @@ EXAMPLES (Status queries):
 - "Vad är status på vardagsrummet?" → {"query_type": "status", "room": "living room"}
 - "Montre-moi tous les appareils" → {"query_type": "status", "scope": "global"}
 - "Wie ist der Status der Lichter im Schlafzimmer?" → {"query_type": "status", "device_type": "light", "room": "bedroom"}
+
+OUTPUT JSON:`;
+}
+
+/**
+ * Build a minimal prompt when the full prompt is too long
+ */
+function buildMinimalPrompt(commandText, zonesSummary) {
+  // Limit room names to prevent prompt from being too long
+  const roomNames = Object.values(zonesSummary).slice(0, 10).join(', ');
+  const roomCount = Object.values(zonesSummary).length;
+  const roomNote = roomCount > 10 ? ` (showing 10 of ${roomCount} rooms)` : '';
+
+  // Detect if this is a lights command
+  const isLightCommand = /light|lights|lamp|lamps|ljus|lampa|lampor|ligt|ligts|belysning/i.test(commandText);
+  const deviceFilterNote = isLightCommand ? '\n- Add "device_filter": "light" for light commands' : '';
+
+  return `Convert this command to JSON.
+
+ROOMS: ${roomNames}${roomNote}
+COMMAND: "${commandText}"
+
+OUTPUT FORMATS:
+- Room: {"room": "<name>", "command": "<action>", "device_filter": "<type>"}
+- Multi-room: {"commands": [{"room": "<name>", "command": "<action>", "device_filter": "<type>"}, ...]}
+- Status: {"query_type": "status", "room": "<name>"}
+- Error: {"error": "<message>"}${deviceFilterNote}
+
+DEVICE FILTERS: light, speaker, socket, thermostat
+COMMANDS: turn_on, turn_off, dim, lock, unlock
+
+EXAMPLES:
+- "Turn on lights" → {"room": "all", "command": "turn_on", "device_filter": "light"}
+- "Tänd ljuset i hela huset" → {"commands": [{"room": "Room1", "command": "turn_on", "device_filter": "light"}, {"room": "Room2", "command": "turn_on", "device_filter": "light"}]}
 
 OUTPUT JSON:`;
 }

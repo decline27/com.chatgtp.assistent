@@ -26,9 +26,9 @@ describe('Regression Tests - Fixed Bugs', function() {
     // Bug: Swedish 'livingroom' incorrectly translated to 'Vardagsrummet' causing validation failures
     it('should not incorrectly translate English livingroom to Swedish', function() {
       const command = 'Turn on livingroom lights';
-      
+
       const result = processMultilingualCommand(command, 'en');
-      
+
       expect(result).to.have.property('rooms').that.is.not.empty;
       expect(result.rooms[0]).to.not.equal('Vardagsrummet');
       expect(result.rooms[0]).to.include('living');
@@ -53,9 +53,9 @@ describe('Regression Tests - Fixed Bugs', function() {
     // Bug: Swedish 'trädgården' incorrectly translated to English 'garden' instead of matching 'Trägården'
     it('should not translate Swedish trädgården to English garden', function() {
       const command = 'Visa enheter i trädgården';
-      
+
       const result = processMultilingualCommand(command, 'sv');
-      
+
       expect(result).to.have.property('rooms').that.is.not.empty;
       expect(result.rooms[0]).to.not.equal('garden');
       expect(result.rooms[0]).to.include('träd');
@@ -80,17 +80,17 @@ describe('Regression Tests - Fixed Bugs', function() {
     it('should accept multi-command JSON structures', function() {
       const multiCommandJSON = {
         commands: [
-          { room: "living room", command: "turn_on", device_filter: "light" },
-          { room: "living room", command: "play_music", device_filter: "speaker" }
+          { room: 'living room', command: 'turn_on', device_filter: 'light' },
+          { room: 'living room', command: 'play_music', device_filter: 'speaker' }
         ]
       };
 
       // Simulate the validation logic that was fixed
-      const hasValidTarget = multiCommandJSON.room || 
-                           multiCommandJSON.device_ids || 
-                           multiCommandJSON.device_id || 
-                           multiCommandJSON.commands;
-      
+      const hasValidTarget = multiCommandJSON.room
+                           || multiCommandJSON.device_ids
+                           || multiCommandJSON.device_id
+                           || multiCommandJSON.commands;
+
       const hasValidCommand = multiCommandJSON.command || multiCommandJSON.commands;
 
       expect(hasValidTarget).to.be.true;
@@ -99,10 +99,10 @@ describe('Regression Tests - Fixed Bugs', function() {
 
     it('should detect and parse multi-commands correctly', function() {
       const command = 'Turn on lights and play music in living room';
-      
+
       const isMulti = detectMultiCommand(command);
       expect(isMulti).to.be.true;
-      
+
       const parsed = parseMultiCommand(command);
       expect(parsed).to.have.property('isMultiCommand', true);
       expect(parsed).to.have.property('commands').that.is.an('array');
@@ -114,9 +114,9 @@ describe('Regression Tests - Fixed Bugs', function() {
     // Bug: When user says "turn on lights", system should filter to only light devices, not all devices
     it('should filter to lights only when lights are mentioned', function() {
       const command = 'turn on lights in living room';
-      
+
       const result = processMultilingualCommand(command, 'en');
-      
+
       expect(result).to.have.property('deviceTypes').that.includes('light');
       expect(result.deviceTypes).to.not.include('camera');
       expect(result.deviceTypes).to.not.include('sensor');
@@ -124,18 +124,18 @@ describe('Regression Tests - Fixed Bugs', function() {
 
     it('should filter to lights for typo "ligt"', function() {
       const command = 'turn on the ligt in the livingroom';
-      
+
       const processed = preprocessCommand(command);
-      
+
       expect(processed.entities.deviceTypes).to.include('light');
       expect(processed.entities.rooms).to.include('living room');
     });
 
     it('should prefer lights for generic room commands', function() {
       const command = 'turn on living room';
-      
+
       const result = processMultilingualCommand(command, 'en');
-      
+
       expect(result).to.have.property('deviceTypes').that.includes('light');
       expect(result).to.have.property('rooms').that.includes('living room');
     });
@@ -146,7 +146,7 @@ describe('Regression Tests - Fixed Bugs', function() {
     it('should return all lights when asking about lights in a room', async function() {
       // Add multiple lights to the same room for testing
       const testHomeState = createMockHomeState();
-      testHomeState.devices['kitchen_light_2'] = {
+      testHomeState.devices.kitchen_light_2 = {
         id: 'kitchen_light_2',
         name: 'Kitchen Light 2',
         class: 'light',
@@ -154,7 +154,7 @@ describe('Regression Tests - Fixed Bugs', function() {
         available: true,
         capabilities: ['onoff', 'dim'],
         capabilitiesObj: { onoff: { value: true }, dim: { value: 0.6 } },
-        getCapabilityValue: async (cap) => {
+        getCapabilityValue: async cap => {
           if (cap === 'onoff') return true;
           if (cap === 'dim') return 0.6;
           return null;
@@ -170,7 +170,7 @@ describe('Regression Tests - Fixed Bugs', function() {
       );
 
       expect(result).to.have.property('success', true);
-      
+
       // Should include multiple light devices
       const lightCount = (result.formattedText.match(/Kitchen Light/g) || []).length;
       expect(lightCount).to.be.above(1);
@@ -189,7 +189,7 @@ describe('Regression Tests - Fixed Bugs', function() {
 
       mixedCommands.forEach(command => {
         const result = processMultilingualCommand(command, 'auto');
-        
+
         expect(result).to.have.property('confidence').that.is.a('number');
         expect(result).to.have.property('rooms').that.is.an('array');
         expect(result).to.have.property('actions').that.is.an('array');
@@ -214,9 +214,9 @@ describe('Regression Tests - Fixed Bugs', function() {
 
     it('should normalize unicode characters for matching', function() {
       const command = 'Sätt på ljus i kök';
-      
+
       const result = processMultilingualCommand(command, 'sv');
-      
+
       expect(result).to.have.property('rooms').that.is.not.empty;
       expect(result).to.have.property('actions').that.includes('turn_on');
       expect(result).to.have.property('deviceTypes').that.includes('light');
@@ -241,7 +241,7 @@ describe('Regression Tests - Fixed Bugs', function() {
 
     it('should handle empty home state gracefully', async function() {
       const emptyHomeState = { devices: {}, zones: {} };
-      
+
       const result = await handleStatusQuery(
         'Show me all devices',
         'en',
@@ -298,7 +298,7 @@ describe('Regression Tests - Fixed Bugs', function() {
 
       commands.forEach(command => {
         const startTime = Date.now();
-        
+
         if (command.includes('status') || command.includes('Show')) {
           // Status queries are async, but we can test the synchronous parts
           const processed = preprocessCommand(command);
@@ -307,7 +307,7 @@ describe('Regression Tests - Fixed Bugs', function() {
           const result = processMultilingualCommand(command, 'auto');
           expect(result).to.have.property('confidence');
         }
-        
+
         const endTime = Date.now();
         expect(endTime - startTime).to.be.below(500); // Should complete within 500ms
       });

@@ -23,7 +23,7 @@ const multilingualTestCases = [
     language: 'en',
     commands: [
       {
-        input: "Turn on the living room lights",
+        input: 'Turn on the living room lights',
         expected: {
           rooms: ['living room'],
           actions: ['turn_on'],
@@ -31,7 +31,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Dim bedroom lights to 50 percent",
+        input: 'Dim bedroom lights to 50 percent',
         expected: {
           rooms: ['bedroom'],
           actions: ['dim'],
@@ -39,7 +39,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Set temperature to 22 degrees in kitchen",
+        input: 'Set temperature to 22 degrees in kitchen',
         expected: {
           rooms: ['kitchen'],
           actions: ['set_temperature'],
@@ -53,7 +53,7 @@ const multilingualTestCases = [
     language: 'es',
     commands: [
       {
-        input: "Encender las luces de la sala de estar",
+        input: 'Encender las luces de la sala de estar',
         expected: {
           rooms: ['living room'],
           actions: ['turn_on'],
@@ -61,7 +61,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Apagar dormitorio",
+        input: 'Apagar dormitorio',
         expected: {
           rooms: ['bedroom'],
           actions: ['turn_off'],
@@ -69,7 +69,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Poner música en la cocina",
+        input: 'Poner música en la cocina',
         expected: {
           rooms: ['kitchen'],
           actions: ['play_music'],
@@ -83,7 +83,7 @@ const multilingualTestCases = [
     language: 'fr',
     commands: [
       {
-        input: "Allumer les lumières du salon",
+        input: 'Allumer les lumières du salon',
         expected: {
           rooms: ['living room'],
           actions: ['turn_on'],
@@ -91,7 +91,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Éteindre la chambre",
+        input: 'Éteindre la chambre',
         expected: {
           rooms: ['bedroom'],
           actions: ['turn_off'],
@@ -99,7 +99,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Jouer de la musique dans la cuisine",
+        input: 'Jouer de la musique dans la cuisine',
         expected: {
           rooms: ['kitchen'],
           actions: ['play_music'],
@@ -113,7 +113,7 @@ const multilingualTestCases = [
     language: 'de',
     commands: [
       {
-        input: "Wohnzimmer Licht einschalten",
+        input: 'Wohnzimmer Licht einschalten',
         expected: {
           rooms: ['living room'],
           actions: ['turn_on'],
@@ -121,7 +121,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Schlafzimmer ausschalten",
+        input: 'Schlafzimmer ausschalten',
         expected: {
           rooms: ['bedroom'],
           actions: ['turn_off'],
@@ -129,7 +129,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Musik in der Küche abspielen",
+        input: 'Musik in der Küche abspielen',
         expected: {
           rooms: ['kitchen'],
           actions: ['play_music'],
@@ -143,7 +143,7 @@ const multilingualTestCases = [
     language: 'it',
     commands: [
       {
-        input: "Accendere le luci del soggiorno",
+        input: 'Accendere le luci del soggiorno',
         expected: {
           rooms: ['living room'],
           actions: ['turn_on'],
@@ -151,7 +151,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Spegnere camera da letto",
+        input: 'Spegnere camera da letto',
         expected: {
           rooms: ['bedroom'],
           actions: ['turn_off'],
@@ -159,7 +159,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Suonare musica in cucina",
+        input: 'Suonare musica in cucina',
         expected: {
           rooms: ['kitchen'],
           actions: ['play_music'],
@@ -173,7 +173,7 @@ const multilingualTestCases = [
     language: 'pt',
     commands: [
       {
-        input: "Ligar as luzes da sala de estar",
+        input: 'Ligar as luzes da sala de estar',
         expected: {
           rooms: ['living room'],
           actions: ['turn_on'],
@@ -181,7 +181,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Desligar quarto",
+        input: 'Desligar quarto',
         expected: {
           rooms: ['bedroom'],
           actions: ['turn_off'],
@@ -189,7 +189,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Tocar música na cozinha",
+        input: 'Tocar música na cozinha',
         expected: {
           rooms: ['kitchen'],
           actions: ['play_music'],
@@ -203,7 +203,7 @@ const multilingualTestCases = [
     language: 'nl',
     commands: [
       {
-        input: "Woonkamer lichten aanzetten",
+        input: 'Woonkamer lichten aanzetten',
         expected: {
           rooms: ['living room'],
           actions: ['turn_on'],
@@ -211,7 +211,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Slaapkamer uitzetten",
+        input: 'Slaapkamer uitzetten',
         expected: {
           rooms: ['bedroom'],
           actions: ['turn_off'],
@@ -219,7 +219,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Muziek afspelen in de keuken",
+        input: 'Muziek afspelen in de keuken',
         expected: {
           rooms: ['kitchen'],
           actions: ['play_music'],
@@ -233,7 +233,7 @@ const multilingualTestCases = [
     language: 'sv',
     commands: [
       {
-        input: "Sätt på vardagsrummet ljus",
+        input: 'Sätt på vardagsrummet ljus',
         expected: {
           rooms: ['living room'],
           actions: ['turn_on'],
@@ -241,7 +241,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Stäng av sovrum",
+        input: 'Stäng av sovrum',
         expected: {
           rooms: ['bedroom'],
           actions: ['turn_off'],
@@ -249,7 +249,7 @@ const multilingualTestCases = [
         }
       },
       {
-        input: "Spela musik i köket",
+        input: 'Spela musik i köket',
         expected: {
           rooms: ['kitchen'],
           actions: ['play_music'],
@@ -264,7 +264,7 @@ const multilingualTestCases = [
 const multiCommandTestCases = [
   {
     language: 'en',
-    input: "Turn on lights and play music in living room",
+    input: 'Turn on lights and play music in living room',
     expected: {
       rooms: ['living room'],
       actions: ['turn_on', 'play_music'],
@@ -273,7 +273,7 @@ const multiCommandTestCases = [
   },
   {
     language: 'es',
-    input: "Encender luces y poner música en sala de estar",
+    input: 'Encender luces y poner música en sala de estar',
     expected: {
       rooms: ['living room'],
       actions: ['turn_on', 'play_music'],
@@ -282,7 +282,7 @@ const multiCommandTestCases = [
   },
   {
     language: 'fr',
-    input: "Allumer lumières et jouer musique dans salon",
+    input: 'Allumer lumières et jouer musique dans salon',
     expected: {
       rooms: ['living room'],
       actions: ['turn_on', 'play_music'],
@@ -291,7 +291,7 @@ const multiCommandTestCases = [
   },
   {
     language: 'de',
-    input: "Licht einschalten und Musik abspielen im Wohnzimmer",
+    input: 'Licht einschalten und Musik abspielen im Wohnzimmer',
     expected: {
       rooms: ['living room'],
       actions: ['turn_on', 'play_music'],
@@ -303,17 +303,17 @@ const multiCommandTestCases = [
 // Mixed language test cases (English commands with local room names)
 const mixedLanguageTestCases = [
   {
-    input: "Turn on vardagsrum lights", // English + Swedish
+    input: 'Turn on vardagsrum lights', // English + Swedish
     expectedRoom: 'living room',
     expectedAction: 'turn_on'
   },
   {
-    input: "Encender bedroom lights", // Spanish + English
+    input: 'Encender bedroom lights', // Spanish + English
     expectedRoom: 'bedroom',
     expectedAction: 'turn_on'
   },
   {
-    input: "Allumer kök lights", // French + Swedish
+    input: 'Allumer kök lights', // French + Swedish
     expectedRoom: 'kitchen',
     expectedAction: 'turn_on'
   }
@@ -336,32 +336,20 @@ function runMultilingualTests() {
       const result = processMultilingualCommand(testCase.input, languageGroup.language);
 
       // Normalize results for comparison
-      const normalizedRooms = result.rooms.map(room =>
-        normalizeRoomName(room, languageGroup.language)
-      );
-      const normalizedActions = result.actions.map(action =>
-        normalizeAction(action, languageGroup.language)
-      );
-      const normalizedDevices = result.deviceTypes.map(device =>
-        normalizeDeviceType(device, languageGroup.language)
-      );
+      const normalizedRooms = result.rooms.map(room => normalizeRoomName(room, languageGroup.language));
+      const normalizedActions = result.actions.map(action => normalizeAction(action, languageGroup.language));
+      const normalizedDevices = result.deviceTypes.map(device => normalizeDeviceType(device, languageGroup.language));
 
       // Check rooms
-      const roomsMatch = testCase.expected.rooms.every(room =>
-        normalizedRooms.includes(room)
-      );
+      const roomsMatch = testCase.expected.rooms.every(room => normalizedRooms.includes(room));
       console.log(`    Rooms: [${normalizedRooms.join(', ')}] ${roomsMatch ? '✅' : '❌'}`);
 
       // Check actions
-      const actionsMatch = testCase.expected.actions.every(action =>
-        normalizedActions.includes(action)
-      );
+      const actionsMatch = testCase.expected.actions.every(action => normalizedActions.includes(action));
       console.log(`    Actions: [${normalizedActions.join(', ')}] ${actionsMatch ? '✅' : '❌'}`);
 
       // Check device types
-      const devicesMatch = testCase.expected.deviceTypes.every(device =>
-        normalizedDevices.includes(device)
-      );
+      const devicesMatch = testCase.expected.deviceTypes.every(device => normalizedDevices.includes(device));
       console.log(`    Devices: [${normalizedDevices.join(', ')}] ${devicesMatch ? '✅' : '❌'}`);
 
       console.log(`    Confidence: ${result.confidence.toFixed(2)}`);
@@ -395,25 +383,13 @@ function runMultiCommandTests() {
     const result = processMultilingualCommand(testCase.input, testCase.language);
 
     // Normalize results
-    const normalizedRooms = result.rooms.map(room =>
-      normalizeRoomName(room, testCase.language)
-    );
-    const normalizedActions = result.actions.map(action =>
-      normalizeAction(action, testCase.language)
-    );
-    const normalizedDevices = result.deviceTypes.map(device =>
-      normalizeDeviceType(device, testCase.language)
-    );
+    const normalizedRooms = result.rooms.map(room => normalizeRoomName(room, testCase.language));
+    const normalizedActions = result.actions.map(action => normalizeAction(action, testCase.language));
+    const normalizedDevices = result.deviceTypes.map(device => normalizeDeviceType(device, testCase.language));
 
-    const roomsMatch = testCase.expected.rooms.every(room =>
-      normalizedRooms.includes(room)
-    );
-    const actionsMatch = testCase.expected.actions.every(action =>
-      normalizedActions.includes(action)
-    );
-    const devicesMatch = testCase.expected.deviceTypes.every(device =>
-      normalizedDevices.includes(device)
-    );
+    const roomsMatch = testCase.expected.rooms.every(room => normalizedRooms.includes(room));
+    const actionsMatch = testCase.expected.actions.every(action => normalizedActions.includes(action));
+    const devicesMatch = testCase.expected.deviceTypes.every(device => normalizedDevices.includes(device));
 
     console.log(`  Rooms: [${normalizedRooms.join(', ')}] ${roomsMatch ? '✅' : '❌'}`);
     console.log(`  Actions: [${normalizedActions.join(', ')}] ${actionsMatch ? '✅' : '❌'}`);
@@ -473,14 +449,14 @@ function runLanguageDetectionTests() {
   console.log('\n🔍 Running Language Detection Tests\n');
 
   const detectionTestCases = [
-    { text: "Turn on the lights", expected: 'en' },
-    { text: "Encender las luces", expected: 'es' },
-    { text: "Allumer les lumières", expected: 'fr' },
-    { text: "Licht einschalten", expected: 'de' },
-    { text: "Accendere le luci", expected: 'it' },
-    { text: "Ligar as luzes", expected: 'pt' },
-    { text: "Lichten aanzetten", expected: 'nl' },
-    { text: "Sätt på ljuset", expected: 'sv' }
+    { text: 'Turn on the lights', expected: 'en' },
+    { text: 'Encender las luces', expected: 'es' },
+    { text: 'Allumer les lumières', expected: 'fr' },
+    { text: 'Licht einschalten', expected: 'de' },
+    { text: 'Accendere le luci', expected: 'it' },
+    { text: 'Ligar as luzes', expected: 'pt' },
+    { text: 'Lichten aanzetten', expected: 'nl' },
+    { text: 'Sätt på ljuset', expected: 'sv' }
   ];
 
   let totalTests = 0;
@@ -512,17 +488,17 @@ function runIntegrationTests() {
 
   const integrationTestCases = [
     {
-      input: "Encender luces vardagsrum", // Spanish action + Swedish room
+      input: 'Encender luces vardagsrum', // Spanish action + Swedish room
       language: 'es',
       expectedProcessed: 'turn on lights living room'
     },
     {
-      input: "Allumer ljus kök", // French action + Swedish device + Swedish room
+      input: 'Allumer ljus kök', // French action + Swedish device + Swedish room
       language: 'fr',
       expectedProcessed: 'turn on light kitchen'
     },
     {
-      input: "Wohnzimmer lights turn on", // German room + English device + English action
+      input: 'Wohnzimmer lights turn on', // German room + English device + English action
       language: 'de',
       expectedProcessed: 'living room lights turn on'
     }
@@ -582,12 +558,12 @@ if (require.main === module) {
   const totalPassed = Object.values(results).reduce((sum, result) => sum + result.passedTests, 0);
   const totalFailed = Object.values(results).reduce((sum, result) => sum + result.failedTests, 0);
 
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📈 OVERALL TEST RESULTS');
   console.log('='.repeat(60));
   console.log(`Total Tests: ${totalTests}`);
-  console.log(`Passed: ${totalPassed} (${((totalPassed/totalTests)*100).toFixed(1)}%)`);
-  console.log(`Failed: ${totalFailed} (${((totalFailed/totalTests)*100).toFixed(1)}%)`);
+  console.log(`Passed: ${totalPassed} (${((totalPassed / totalTests) * 100).toFixed(1)}%)`);
+  console.log(`Failed: ${totalFailed} (${((totalFailed / totalTests) * 100).toFixed(1)}%)`);
 
   if (totalFailed === 0) {
     console.log('\n🎉 All multilingual tests passed! The system supports comprehensive multilingual voice commands.');

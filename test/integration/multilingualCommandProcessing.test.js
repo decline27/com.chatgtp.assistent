@@ -25,20 +25,20 @@ describe('Multilingual Command Processing Integration', function() {
     TEST_CONFIG.languages.forEach(language => {
       it(`should process ${language} commands end-to-end`, function() {
         const commands = TestDataGenerators.generateMultilingualCommands(language);
-        
+
         commands.forEach(command => {
           const result = processMultilingualCommand(command, language);
-          
+
           expect(result).to.have.property('rooms').that.is.an('array');
           expect(result).to.have.property('actions').that.is.an('array');
           expect(result).to.have.property('deviceTypes').that.is.an('array');
           expect(result).to.have.property('confidence').that.is.a('number');
           expect(result).to.have.property('language', language);
-          
+
           // Should have extracted at least one meaningful element
-          const hasContent = result.rooms.length > 0 || 
-                           result.actions.length > 0 || 
-                           result.deviceTypes.length > 0;
+          const hasContent = result.rooms.length > 0
+                           || result.actions.length > 0
+                           || result.deviceTypes.length > 0;
           expect(hasContent).to.be.true;
         });
       });
@@ -48,15 +48,15 @@ describe('Multilingual Command Processing Integration', function() {
   describe('Multi-Command Processing', function() {
     it('should detect and parse English multi-commands', function() {
       const command = 'Turn on lights and play music in living room';
-      
+
       const isMulti = detectMultiCommand(command);
       expect(isMulti).to.be.true;
-      
+
       const parsed = parseMultiCommand(command);
       expect(parsed).to.have.property('isMultiCommand', true);
       expect(parsed).to.have.property('commands').that.is.an('array');
       expect(parsed.commands).to.have.length.above(1);
-      
+
       // Should contain both light and music commands
       const commandTexts = parsed.commands.map(cmd => cmd.command);
       expect(commandTexts.some(cmd => cmd.includes('light'))).to.be.true;
@@ -65,10 +65,10 @@ describe('Multilingual Command Processing Integration', function() {
 
     it('should handle Swedish multi-commands', function() {
       const command = 'Sätt på ljus och spela musik i vardagsrummet';
-      
+
       const isMulti = detectMultiCommand(command);
       expect(isMulti).to.be.true;
-      
+
       const parsed = parseMultiCommand(command);
       expect(parsed).to.have.property('isMultiCommand', true);
       expect(parsed.commands).to.have.length.above(1);
@@ -76,12 +76,12 @@ describe('Multilingual Command Processing Integration', function() {
 
     it('should process multi-commands with room context', function() {
       const command = 'Turn on lights and speakers in kitchen';
-      
+
       const processed = preprocessCommand(command);
       expect(processed).to.have.property('entities');
       expect(processed.entities).to.have.property('rooms').that.includes('kitchen');
       expect(processed.entities).to.have.property('deviceTypes').that.is.an('array');
-      
+
       // Should include both lights and speakers
       const deviceTypes = processed.entities.deviceTypes;
       expect(deviceTypes.some(type => type.includes('light'))).to.be.true;
@@ -92,9 +92,9 @@ describe('Multilingual Command Processing Integration', function() {
   describe('Mixed Language Commands', function() {
     it('should handle English commands with Swedish room names', function() {
       const command = 'Turn on vardagsrum lights';
-      
+
       const result = processMultilingualCommand(command, 'auto');
-      
+
       expect(result).to.have.property('rooms').that.is.not.empty;
       expect(result).to.have.property('actions').that.includes('turn_on');
       expect(result).to.have.property('deviceTypes').that.includes('light');
@@ -103,9 +103,9 @@ describe('Multilingual Command Processing Integration', function() {
 
     it('should handle Swedish commands with English device names', function() {
       const command = 'Sätt på lights i köket';
-      
+
       const result = processMultilingualCommand(command, 'sv');
-      
+
       expect(result).to.have.property('actions').that.includes('turn_on');
       expect(result).to.have.property('deviceTypes').that.includes('light');
       expect(result).to.have.property('confidence').above(0.6);
@@ -113,9 +113,9 @@ describe('Multilingual Command Processing Integration', function() {
 
     it('should handle completely mixed language commands', function() {
       const command = 'Allumer ljus kök'; // French + Swedish + Swedish
-      
+
       const result = processMultilingualCommand(command, 'fr');
-      
+
       expect(result).to.have.property('actions').that.includes('turn_on');
       expect(result).to.have.property('deviceTypes').that.includes('light');
       expect(result).to.have.property('rooms').that.is.not.empty;
@@ -153,9 +153,9 @@ describe('Multilingual Command Processing Integration', function() {
 
     it('should handle generic room commands appropriately', function() {
       const command = 'Turn on living room';
-      
+
       const result = processMultilingualCommand(command, 'en');
-      
+
       expect(result).to.have.property('rooms').that.includes('living room');
       expect(result).to.have.property('actions').that.includes('turn_on');
       // Should prefer lights for generic room commands
@@ -173,12 +173,12 @@ describe('Multilingual Command Processing Integration', function() {
 
       commands.forEach(command => {
         const processed = preprocessCommand(command);
-        
+
         expect(processed).to.have.property('processed').that.is.a('string');
         expect(processed).to.have.property('intent').that.is.a('string');
         expect(processed).to.have.property('confidence').above(0.5);
         expect(processed).to.have.property('entities');
-        
+
         // Processed command should be cleaner
         expect(processed.processed.length).to.be.at.most(command.length);
         expect(processed.processed).to.not.include('please');
@@ -195,7 +195,7 @@ describe('Multilingual Command Processing Integration', function() {
 
       typoCommands.forEach(command => {
         const processed = preprocessCommand(command);
-        
+
         expect(processed).to.have.property('confidence').above(0.4);
         expect(processed.entities.rooms).to.not.be.empty;
         expect(processed.entities.deviceTypes).to.not.be.empty;
@@ -211,7 +211,7 @@ describe('Multilingual Command Processing Integration', function() {
 
       unclearCommands.forEach(command => {
         const processed = preprocessCommand(command);
-        
+
         if (processed.confidence < 0.6) {
           expect(processed).to.have.property('suggestion').that.is.a('string');
           expect(processed.suggestion.length).to.be.above(0);
@@ -223,16 +223,16 @@ describe('Multilingual Command Processing Integration', function() {
   describe('Performance and Scalability', function() {
     it('should process commands efficiently', function() {
       const commands = TestDataGenerators.generateMultilingualCommands('en');
-      
+
       const startTime = Date.now();
-      
+
       commands.forEach(command => {
         processMultilingualCommand(command, 'en');
       });
-      
+
       const endTime = Date.now();
       const avgTime = (endTime - startTime) / commands.length;
-      
+
       expect(avgTime).to.be.below(100); // Should process each command in under 100ms
     });
 
@@ -245,9 +245,7 @@ describe('Multilingual Command Processing Integration', function() {
         'Lock the door'
       ];
 
-      const promises = commands.map(command => 
-        Promise.resolve(processMultilingualCommand(command, 'en'))
-      );
+      const promises = commands.map(command => Promise.resolve(processMultilingualCommand(command, 'en')));
 
       const results = await Promise.all(promises);
 
@@ -259,9 +257,9 @@ describe('Multilingual Command Processing Integration', function() {
 
     it('should handle very long commands', function() {
       const longCommand = 'Could you please turn on all the lighting devices that are currently installed in the living room area and also please start playing some relaxing background music on the speakers that are located in the same room';
-      
+
       const result = processMultilingualCommand(longCommand, 'en');
-      
+
       expect(result).to.have.property('rooms').that.includes('living room');
       expect(result).to.have.property('actions').that.is.not.empty;
       expect(result).to.have.property('deviceTypes').that.is.not.empty;
@@ -272,7 +270,7 @@ describe('Multilingual Command Processing Integration', function() {
   describe('Error Handling and Edge Cases', function() {
     it('should handle empty commands gracefully', function() {
       const result = processMultilingualCommand('', 'en');
-      
+
       expect(result).to.have.property('rooms').that.is.empty;
       expect(result).to.have.property('actions').that.is.empty;
       expect(result).to.have.property('deviceTypes').that.is.empty;
@@ -281,16 +279,16 @@ describe('Multilingual Command Processing Integration', function() {
 
     it('should handle unknown languages', function() {
       const result = processMultilingualCommand('Turn on lights', 'unknown');
-      
+
       expect(result).to.have.property('language', 'unknown');
       expect(result).to.have.property('confidence').above(0);
     });
 
     it('should handle commands with no recognizable elements', function() {
       const nonsenseCommand = 'asdfghjkl qwertyuiop';
-      
+
       const result = processMultilingualCommand(nonsenseCommand, 'en');
-      
+
       expect(result).to.have.property('confidence', 0);
       expect(result).to.have.property('rooms').that.is.empty;
       expect(result).to.have.property('actions').that.is.empty;
@@ -298,9 +296,9 @@ describe('Multilingual Command Processing Integration', function() {
 
     it('should handle special characters and emojis', function() {
       const specialCommand = '💡 Turn on lights! 🏠 @home #automation';
-      
+
       const result = processMultilingualCommand(specialCommand, 'en');
-      
+
       expect(result).to.have.property('actions').that.includes('turn_on');
       expect(result).to.have.property('deviceTypes').that.includes('light');
       expect(result.confidence).to.be.above(0.6);

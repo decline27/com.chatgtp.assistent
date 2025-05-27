@@ -23,7 +23,7 @@ describe('Testing Framework Demo', function() {
   describe('Basic Test Structure', function() {
     it('should demonstrate basic assertions', function() {
       const testValue = 'hello world';
-      
+
       expect(testValue).to.be.a('string');
       expect(testValue).to.include('world');
       expect(testValue).to.have.length(11);
@@ -71,10 +71,10 @@ describe('Testing Framework Demo', function() {
     it('should demonstrate home state mocking', function() {
       expect(mockHomeState).to.have.property('devices');
       expect(mockHomeState).to.have.property('zones');
-      
+
       const deviceCount = Object.keys(mockHomeState.devices).length;
       const zoneCount = Object.keys(mockHomeState.zones).length;
-      
+
       expect(deviceCount).to.be.above(0);
       expect(zoneCount).to.be.above(0);
     });
@@ -82,7 +82,7 @@ describe('Testing Framework Demo', function() {
     it('should demonstrate LLM function mocking', async function() {
       const response = await mockLLMFunction('test prompt with kitchen');
       const parsed = JSON.parse(response);
-      
+
       expect(parsed).to.have.property('match');
       expect(parsed).to.have.property('confidence');
       expect(parsed).to.have.property('reasoning');
@@ -149,7 +149,7 @@ describe('Testing Framework Demo', function() {
 
       expect(statusQueries).to.be.an('array');
       expect(statusQueries).to.have.length.above(0);
-      
+
       statusQueries.forEach(query => {
         expect(query).to.be.a('string');
         expect(query.length).to.be.above(0);
@@ -174,7 +174,7 @@ describe('Testing Framework Demo', function() {
       expect(TEST_CONFIG.timeout.unit).to.be.a('number');
       expect(TEST_CONFIG.timeout.integration).to.be.a('number');
       expect(TEST_CONFIG.timeout.performance).to.be.a('number');
-      
+
       expect(TEST_CONFIG.timeout.integration).to.be.above(TEST_CONFIG.timeout.unit);
       expect(TEST_CONFIG.timeout.performance).to.be.above(TEST_CONFIG.timeout.integration);
     });
@@ -191,7 +191,7 @@ describe('Testing Framework Demo', function() {
     });
 
     it('should demonstrate graceful error handling', function() {
-      const safeFunction = (input) => {
+      const safeFunction = input => {
         try {
           if (!input) throw new Error('No input provided');
           return input.toUpperCase();
@@ -209,28 +209,28 @@ describe('Testing Framework Demo', function() {
   describe('Performance Testing Demo', function() {
     it('should demonstrate performance measurement', function() {
       const startTime = Date.now();
-      
+
       // Simulate some work
       for (let i = 0; i < 1000; i++) {
         Math.sqrt(i);
       }
-      
+
       const endTime = Date.now();
       const duration = endTime - startTime;
-      
+
       expect(duration).to.be.a('number');
       expect(duration).to.be.below(100); // Should complete quickly
     });
 
     it('should demonstrate memory usage awareness', function() {
       const initialMemory = process.memoryUsage().heapUsed;
-      
+
       // Create some objects
       const largeArray = new Array(10000).fill('test data');
-      
+
       const afterMemory = process.memoryUsage().heapUsed;
       const memoryIncrease = afterMemory - initialMemory;
-      
+
       expect(memoryIncrease).to.be.above(0);
       expect(largeArray).to.have.length(10000);
     });
@@ -241,7 +241,7 @@ describe('Testing Framework Demo', function() {
       // Test name clearly describes what is being tested
       const deviceName = 'Kitchen Light';
       const expectedClass = 'light';
-      
+
       expect(deviceName).to.include('Kitchen');
       expect(expectedClass).to.equal('light');
     });
@@ -249,14 +249,14 @@ describe('Testing Framework Demo', function() {
     it('should demonstrate single responsibility testing', function() {
       // Each test should test one specific thing
       const device = createMockDevice({ class: 'light' });
-      
+
       // Only testing the class property
       expect(device.class).to.equal('light');
     });
 
     it('should demonstrate clear assertions with messages', function() {
       const result = { success: true, data: 'test' };
-      
+
       expect(result.success, 'Operation should succeed').to.be.true;
       expect(result.data, 'Should contain test data').to.equal('test');
     });
