@@ -5,7 +5,8 @@ const { ErrorHandler, ErrorTypes } = require('./errorHandler');
 const { getKeyManager } = require('./secureKeyManager');
 
 let messageCallback = null;
-const POLL_INTERVAL = 1000; // 1 second
+// Make poll interval configurable, default to 1 second
+let POLL_INTERVAL = 1000;
 
 /**
  * Simple mutex implementation for synchronization
@@ -190,6 +191,19 @@ async function initBot(token) {
       throw error; // Re-throw StandardError as-is
     }
     throw ErrorHandler.wrap(error, ErrorTypes.AUTHENTICATION_ERROR, 'Failed to initialize Telegram bot');
+  }
+}
+
+/**
+ * Configure polling interval
+ * @param {number} interval - Polling interval in milliseconds
+ */
+function configurePollInterval(interval) {
+  if (typeof interval === 'number' && interval >= 100) { // Minimum 100ms
+    POLL_INTERVAL = interval;
+    console.log(`Telegram polling interval set to ${interval}ms`);
+  } else {
+    console.warn('Invalid polling interval, using default 1000ms');
   }
 }
 
@@ -426,4 +440,4 @@ function httpGet(url, signal = null) {
   });
 }
 
-module.exports = { initBot, onMessage, sendMessage, getFileInfo, stopPolling };
+module.exports = { initBot, onMessage, sendMessage, getFileInfo, stopPolling, configurePollInterval };

@@ -3,11 +3,81 @@
 const { onMessage } = require('./telegram');
 const { ErrorHandler } = require('./errorHandler');
 
+// Rate limiting map: chatId -> { count, resetTime }
+const rateLimits = new Map();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const DEFAULT_RATE_LIMIT = 10; // 10 commands per minute
+
+/**
+ * Check if user is authorized to use the bot
+ * @param {number} chatId - Telegram chat ID
+ * @param {object} app - Homey app instance
+ * @returns {boolean} - Whether user is authorized
+ */
+function isUserAuthorized(chatId, app) {
+  const allowedUsers = app.homey?.settings?.get('allowedTelegramUsers');
+  
+  // If no restrictions are set, allow all users
+  if (!allowedUsers || allowedUsers.length === 0) {
+    return true;
+  }
+  
+  // Check if user is in allowed list
+  return allowedUsers.includes(chatId.toString()) || allowedUsers.includes(chatId);
+}
+
+/**
+ * Check rate limiting for user
+ * @param {number} chatId - Telegram chat ID
+ * @param {object} app - Homey app instance
+ * @returns {boolean} - Whether user is within rate limits
+ */
+function checkRateLimit(chatId, app) {
+  const now = Date.now();
+  const userLimit = app.homey?.settings?.get('telegramRateLimit') || DEFAULT_RATE_LIMIT;
+  
+  if (!rateLimits.has(chatId)) {
+    rateLimits.set(chatId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  
+  const userRateData = rateLimits.get(chatId);
+  
+  // Reset if window has passed
+  if (now > userRateData.resetTime) {
+    rateLimits.set(chatId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  
+  // Check if under limit
+  if (userRateData.count < userLimit) {
+    userRateData.count++;
+    return true;
+  }
+  
+  return false;
+}
+
 module.exports = function initTelegramListener(app) {
   // Sets up the Telegram message listener
   onMessage(async msg => {
     const chatId = msg.chat.id;
+    
     try {
+      // Check user authorization
+      if (!isUserAuthorized(chatId, app)) {
+        await app.telegram.sendMessage(chatId, '❌ Unauthorized: You are not allowed to use this bot.');
+        app.log(`Unauthorized access attempt from chat ID: ${chatId}`);
+        return;
+      }
+      
+      // Check rate limiting
+      if (!checkRateLimit(chatId, app)) {
+        await app.telegram.sendMessage(chatId, '⏰ Rate limit exceeded. Please wait before sending more commands.');
+        app.log(`Rate limit exceeded for chat ID: ${chatId}`);
+        return;
+      }
+      
       let commandText = '';
 
       // Handle different message types
@@ -21,7 +91,12 @@ module.exports = function initTelegramListener(app) {
         await app.telegram.sendMessage(chatId, '🎤 Processing voice message...');
 
         const fileInfo = await app.telegram.getFileInfo(fileId);
-        const fileUrl = `https://api.telegram.org/file/bot${app.homey.settings.get('telegramBotToken')}/${fileInfo.file_path}`;
+        
+        // Use secure key manager instead of direct Homey settings access
+        const { getKeyManager } = require('./secureKeyManager');
+        const keyManager = getKeyManager();
+        const botToken = keyManager.getKey('telegram');
+        const fileUrl = `https://api.telegram.org/file/bot${botToken}/${fileInfo.file_path}`;
 
         // Use helper method to download file data as Buffer
         const buffer = await app.downloadBuffer(fileUrl);
@@ -54,22 +129,32 @@ module.exports = function initTelegramListener(app) {
 
         // Handle special commands
         if (commandText.toLowerCase().startsWith('/help')) {
+          // Generate dynamic help text based on available devices
+          const homeState = await app.getHomeState();
+          const deviceClasses = [...new Set(Object.values(homeState.devices || {}).map(device => device.class))];
+          const roomNames = Object.values(homeState.zones || {}).map(zone => zone.name).slice(0, 3); // Show first 3 rooms
+          
           const helpText = `🏠 Homey Assistant Help
 
-I can help you control your smart home devices! Here are some examples:
+I can help you control your smart home devices! Here are some examples based on your setup:
 
 🔹 Room commands:
-• "Turn on living room lights"
+${roomNames.map(room => `• "Turn on ${room} lights"`).join('\n')}
 • "Turn off bedroom"
 • "Dim kitchen lights"
 
 🔹 Device commands:
-• "Set temperature to 22 degrees"
-• "Lock the front door"
-• "Open the curtains"
-
+${deviceClasses.includes('thermostat') ? '• "Set temperature to 22 degrees"\n' : ''}${deviceClasses.includes('lock') ? '• "Lock the front door"\n' : ''}${deviceClasses.includes('curtain') ? '• "Open the curtains"\n' : ''} 
 🔹 Voice messages:
 • Send a voice message with your command
+
+🔹 Status queries:
+• "What's the status of the living room?"
+• "Show me all lights"
+• "/status" for system status
+
+Available device types: ${deviceClasses.join(', ')}
+Available rooms: ${roomNames.join(', ')}${Object.keys(homeState.zones || {}).length > 3 ? ' and more...' : ''}
 
 Tips for better results:
 • Be specific about rooms and devices
@@ -111,8 +196,9 @@ Ready to process commands!`;
         return;
       }
 
-      // Send processing indicator for complex commands
-      if (commandText.length > 20) {
+      // Send processing indicator for complex commands (configurable threshold)
+      const processingThreshold = app.homey?.settings?.get('processingIndicatorThreshold') || 50;
+      if (commandText.length > processingThreshold) {
         await app.telegram.sendMessage(chatId, '🤔 Processing your request...');
       }
 

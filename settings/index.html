@@ -11,7 +11,7 @@
             background-color: #f5f5f5;
         }
         .container {
-            max-width: 600px;
+            max-width: 700px;
             margin: 0 auto;
             background-color: white;
             padding: 20px;
@@ -22,6 +22,13 @@
             color: #0066cc;
             margin-bottom: 20px;
         }
+        h2 {
+            color: #333;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 5px;
+        }
         .form-group {
             margin-bottom: 20px;
         }
@@ -31,22 +38,36 @@
             font-weight: 500;
             color: #333;
         }
-        input[type="password"] {
+        input[type="text"], input[type="password"], input[type="number"], textarea {
             width: 100%;
-            padding: 8px;
+            padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
             box-sizing: border-box;
         }
+        input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        small {
+            display: block;
+            color: #666;
+            font-size: 12px;
+            margin-top: 5px;
+        }
         button {
             background-color: #0066cc;
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 12px 24px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
+            margin-top: 20px;
         }
         button:hover {
             background-color: #0052a3;
@@ -72,6 +93,8 @@
 <body>
     <div class="container">
         <h1>ChatGPT Assistant Settings</h1>
+        
+        <h2>API Configuration</h2>
         <div class="form-group">
             <label for="telegramBotToken">Telegram Bot Token</label>
             <input type="password" id="telegramBotToken" placeholder="Enter your Telegram Bot Token">
@@ -80,6 +103,40 @@
             <label for="openaiApiKey">OpenAI API Key</label>
             <input type="password" id="openaiApiKey" placeholder="Enter your OpenAI API Key">
         </div>
+
+        <h2>Bot Configuration</h2>
+        <div class="form-group">
+            <label for="pollInterval">Poll Interval (ms)</label>
+            <input type="number" id="pollInterval" min="100" max="10000" value="1000">
+            <small>How often to check for new Telegram messages (minimum 100ms)</small>
+        </div>
+        <div class="form-group">
+            <label for="processingIndicatorThreshold">Processing Indicator Threshold</label>
+            <input type="number" id="processingIndicatorThreshold" min="0" max="2000" value="50">
+            <small>Show processing indicator for messages longer than this many characters</small>
+        </div>
+
+        <h2>Access Control</h2>
+        <div class="form-group">
+            <label for="authorizedUsers">Authorized User IDs</label>
+            <textarea id="authorizedUsers" rows="3" placeholder="Enter comma-separated Telegram user IDs (leave empty for all users)"></textarea>
+            <small>Example: 123456789, 987654321</small>
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="enableRateLimit" checked> Enable Rate Limiting
+            </label>
+            <small>Limit how often users can send commands to prevent spam</small>
+        </div>
+        <div class="form-group">
+            <label for="rateLimitRequests">Max Requests per Window</label>
+            <input type="number" id="rateLimitRequests" min="1" max="100" value="10">
+        </div>
+        <div class="form-group">
+            <label for="rateLimitWindow">Rate Limit Window (seconds)</label>
+            <input type="number" id="rateLimitWindow" min="10" max="3600" value="60">
+        </div>
+
         <button onclick="saveSettings()">Save Settings</button>
         <div id="statusMessage" class="status"></div>
     </div>
@@ -91,46 +148,74 @@
             homeyInstance = Homey;
 
             // Load existing settings
-            Homey.get('telegramBotToken', function(err, token) {
-                if (!err && token) {
-                    document.getElementById('telegramBotToken').value = token;
-                }
-            });
+            const settingsToLoad = [
+                'telegramBotToken',
+                'openaiApiKey',
+                'pollInterval',
+                'processingIndicatorThreshold',
+                'authorizedUsers',
+                'enableRateLimit',
+                'rateLimitRequests',
+                'rateLimitWindow'
+            ];
 
-            Homey.get('openaiApiKey', function(err, key) {
-                if (!err && key) {
-                    document.getElementById('openaiApiKey').value = key;
-                }
+            settingsToLoad.forEach(setting => {
+                Homey.get(setting, function(err, value) {
+                    if (!err && value !== null && value !== undefined) {
+                        const element = document.getElementById(setting);
+                        if (element) {
+                            if (element.type === 'checkbox') {
+                                element.checked = value;
+                            } else {
+                                element.value = value;
+                            }
+                        }
+                    }
+                });
             });
 
             Homey.ready();
         }
 
         function saveSettings() {
-            const telegramToken = document.getElementById('telegramBotToken').value;
-            const openaiKey = document.getElementById('openaiApiKey').value;
-            const statusElement = document.getElementById('statusMessage');
+            const settings = {
+                telegramBotToken: document.getElementById('telegramBotToken').value,
+                openaiApiKey: document.getElementById('openaiApiKey').value,
+                pollInterval: parseInt(document.getElementById('pollInterval').value),
+                processingIndicatorThreshold: parseInt(document.getElementById('processingIndicatorThreshold').value),
+                authorizedUsers: document.getElementById('authorizedUsers').value,
+                enableRateLimit: document.getElementById('enableRateLimit').checked,
+                rateLimitRequests: parseInt(document.getElementById('rateLimitRequests').value),
+                rateLimitWindow: parseInt(document.getElementById('rateLimitWindow').value)
+            };
 
-            // Validate inputs
-            if (!telegramToken || !openaiKey) {
+            // Validate required fields
+            if (!settings.telegramBotToken || !settings.openaiApiKey) {
                 showStatus('Please fill in both API keys', false);
                 return;
             }
 
-            // Save settings
-            homeyInstance.set('telegramBotToken', telegramToken, function(err) {
-                if (err) {
-                    showStatus('Error saving Telegram token: ' + err.message, false);
-                    return;
-                }
+            // Validate poll interval
+            if (settings.pollInterval < 100) {
+                showStatus('Poll interval must be at least 100ms', false);
+                return;
+            }
 
-                homeyInstance.set('openaiApiKey', openaiKey, function(err) {
+            // Save all settings
+            let savedCount = 0;
+            const totalSettings = Object.keys(settings).length;
+
+            Object.entries(settings).forEach(([key, value]) => {
+                homeyInstance.set(key, value, function(err) {
                     if (err) {
-                        showStatus('Error saving OpenAI key: ' + err.message, false);
+                        showStatus(`Error saving ${key}: ${err.message}`, false);
                         return;
                     }
-
-                    showStatus('Settings saved successfully!', true);
+                    
+                    savedCount++;
+                    if (savedCount === totalSettings) {
+                        showStatus('All settings saved successfully!', true);
+                    }
                 });
             });
         }
@@ -141,10 +226,10 @@
             statusElement.style.display = 'block';
             statusElement.className = 'status ' + (isSuccess ? 'success' : 'error');
 
-            // Hide the message after 3 seconds
+            // Hide the message after 5 seconds
             setTimeout(() => {
                 statusElement.style.display = 'none';
-            }, 3000);
+            }, 5000);
         }
     </script>
 </body>

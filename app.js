@@ -1,6 +1,14 @@
+// Patch: Make Homey import test-friendly
+let Homey;
+try {
+  Homey = require('homey');
+} catch (e) {
+  // Provide a mock Homey.App for test environments
+  Homey = { App: class {} };
+}
+
 'use strict';
 
-const Homey = require('homey');
 const { EventTarget } = require('events');
 // Removed local https require as HTTP logic is now in httpHelper
 
@@ -86,40 +94,35 @@ class ChatGPTAssistant extends Homey.App {
       return { error: 'Invalid command text: must be a non-empty string' };
     }
 
-    if (commandText.length > 1000) {
-      return { error: 'Command text too long: maximum 1000 characters allowed' };
+    if (commandText.length > 2000) {
+      return { error: 'Command text too long: maximum 2000 characters allowed' };
     }
 
-    // Character filtering - allow alphanumeric, spaces, common punctuation, and international characters
-    if (!/^[a-zA-Z0-9\s\-_åäöÅÄÖéèêëíìîïóòôõúùûüñçÉÈÊËÍÌÎÏÓÒÔÕÚÙÛÜÑÇ.,!?'"()]+$/.test(commandText)) {
-      return { error: 'Command contains invalid characters: only letters, numbers, spaces, and basic punctuation allowed' };
+    // Character filtering - allow most characters except control characters and dangerous patterns
+    // Block control characters (except newline, tab, carriage return) and null bytes
+    if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(commandText)) {
+      return { error: 'Command contains invalid control characters' };
+    }
+    
+    // Block potentially dangerous HTML/JS injection patterns
+    if (/<script[\s\S]*?>[\s\S]*?<\/script>/i.test(commandText) || 
+        /javascript:\s*/.test(commandText) || 
+        /data:\s*text\/html/i.test(commandText)) {
+      return { error: 'Command contains potentially unsafe content' };
     }
 
-    // Language validation
-    const validLanguages = ['en', 'sv', 'fr', 'de', 'es', 'it', 'pt', 'nl', 'no', 'da', 'fi'];
+    // Language validation - support major world languages
+    const validLanguages = [
+      'en', 'sv', 'fr', 'de', 'es', 'it', 'pt', 'nl', 'no', 'da', 'fi', // Original European languages
+      'zh', 'ja', 'ko', 'ar', 'ru', 'hi', 'th', 'vi', 'tr', 'pl', 'cs', 'hu', 'ro', 'bg', 'hr', 'sk', 'sl', 'et', 'lv', 'lt' // Additional global languages
+    ];
     if (!validLanguages.includes(detectedLanguage)) {
-      this.log(`Invalid language detected: ${detectedLanguage}, defaulting to English`);
+      this.log(`Language not specifically supported: ${detectedLanguage}, defaulting to English but processing anyway`);
       detectedLanguage = 'en'; // Default fallback
     }
 
     // Sanitize input
     const sanitizedCommand = commandText.trim().replace(/\s+/g, ' ');
-
-    // Additional security check for potential injection patterns
-    const suspiciousPatterns = [
-      /javascript:/i,
-      /<script/i,
-      /eval\(/i,
-      /function\(/i,
-      /setTimeout/i,
-      /setInterval/i
-    ];
-
-    for (const pattern of suspiciousPatterns) {
-      if (pattern.test(sanitizedCommand)) {
-        return { error: 'Command contains potentially unsafe content' };
-      }
-    }
 
     const homeState = await this.getHomeState();
 
@@ -511,18 +514,12 @@ class ChatGPTAssistant extends Homey.App {
    */
   async executeHomeyCommand(jsonCommand) {
     if (jsonCommand.error) throw new Error(jsonCommand.error);
-
-    // Handle status queries
     if (jsonCommand.query_type === 'status') {
       return await this.executeStatusQuery(jsonCommand);
     }
-
-    // Handle multi-commands
     if (jsonCommand.commands && Array.isArray(jsonCommand.commands)) {
       return await this.executeMultiCommand(jsonCommand.commands);
     }
-
-    // If ChatGPT returned "onoff", convert it to explicit commands.
     if (jsonCommand.command === 'onoff') {
       if (jsonCommand.parameters && typeof jsonCommand.parameters.onoff === 'boolean') {
         jsonCommand.command = jsonCommand.parameters.onoff ? 'turn_on' : 'turn_off';
@@ -530,544 +527,434 @@ class ChatGPTAssistant extends Homey.App {
         throw new Error('Invalid parameters for onoff command.');
       }
     }
-
-    // Helper function to determine if a device class is controllable for on/off commands
-    function isControllableDeviceClass(deviceClass) {
-      const readOnlyClasses = ['sensor', 'camera', 'button', 'other'];
-      const limitedControlClasses = ['thermostat']; // These have specific commands only
-
-      if (readOnlyClasses.includes(deviceClass)) {
-        return false;
-      }
-
-      // For turn_on/turn_off commands, exclude thermostats as they don't typically support these
-      return !limitedControlClasses.includes(deviceClass);
-    }
-
-    // Function to detect if a socket is controlling a light based on Homey metadata only
-    function isLightControllingSocket(device) {
-      if (device.class !== 'socket') return false;
-
-      try {
-        // Debug: Log available metadata for socket devices to help users understand what's available
-        this.log(`Analyzing socket "${device.name}" for light control. Available metadata:`, {
-          settings: device.settings ? Object.keys(device.settings) : 'none',
-          data: device.data ? Object.keys(device.data) : 'none',
-          store: device.store ? Object.keys(device.store) : 'none',
-          capabilities: device.capabilities || 'none'
-        });
-        // Method 1: Check Homey device settings for user-defined purpose/category
-        if (device.settings) {
-          // Check for common settings that might indicate light control
-          const lightSettings = ['purpose', 'category', 'device_type', 'connected_device', 'usage', 'type'];
-          for (const setting of lightSettings) {
-            if (device.settings[setting]) {
-              const value = device.settings[setting].toString().toLowerCase();
-              if (value.includes('light') || value.includes('lamp') || value.includes('ljus') || value.includes('lampa')) {
-                this.log(`Socket "${device.name}" identified as light controller via settings.${setting}: ${value}`);
-                return true;
-              }
-            }
-          }
-        }
-
-        // Method 2: Check device data for metadata
-        if (device.data) {
-          // Check for device data that might indicate connected device type
-          const dataKeys = Object.keys(device.data);
-          for (const key of dataKeys) {
-            if (typeof device.data[key] === 'string') {
-              const value = device.data[key].toLowerCase();
-              if (value.includes('light') || value.includes('lamp')) {
-                this.log(`Socket "${device.name}" identified as light controller via data.${key}: ${value}`);
-                return true;
-              }
-            }
-          }
-        }
-
-        // Method 3: Check device store for app-specific metadata
-        if (device.store) {
-          const storeKeys = Object.keys(device.store);
-          for (const key of storeKeys) {
-            if (typeof device.store[key] === 'string') {
-              const value = device.store[key].toLowerCase();
-              if (value.includes('light') || value.includes('lamp')) {
-                this.log(`Socket "${device.name}" identified as light controller via store.${key}: ${value}`);
-                return true;
-              }
-            }
-          }
-        }
-
-        // Method 4: Check if device has light-related capabilities that suggest it controls lighting
-        if (device.capabilities) {
-          // Some smart sockets might have dim capability when controlling lights
-          if (device.capabilities.includes('dim') || device.capabilities.includes('light_hue') ||
-              device.capabilities.includes('light_saturation') || device.capabilities.includes('light_temperature')) {
-            this.log(`Socket "${device.name}" identified as light controller via lighting capabilities: ${device.capabilities.join(', ')}`);
-            return true;
-          }
-        }
-
-        return false;
-
-      } catch (error) {
-        this.error(`Error analyzing socket "${device.name}" for light control:`, error);
-        return false;
-      }
-    }
-
-
-
-    // Enhanced capability mapping for better device support
-    function getCapabilityForCommand(device, command) {
-      const caps = getCapabilityKeys(device);
-      const deviceClass = device.class;
-
-      // Handle on/off commands with device-specific logic
-      if (command === 'turn_on' || command === 'turn_off') {
-        // Standard onoff capability (most common)
-        if (caps.includes('onoff')) return 'onoff';
-
-        // Device-specific mappings
-        switch (deviceClass) {
-          case 'speaker':
-            if (caps.includes('speaker_playing')) return 'speaker_playing';
-            break;
-          case 'curtain':
-          case 'blinds':
-            if (caps.includes('windowcoverings_set')) return 'windowcoverings_set';
-            break;
-          case 'lock':
-            if (caps.includes('locked')) return 'locked';
-            break;
-          case 'thermostat':
-            // Thermostats don't typically have on/off
-            return null;
-          case 'sensor':
-            // Sensors are read-only
-            return null;
-        }
-        return null;
-      }
-
-      // Handle specific commands
-      switch (command) {
-        case 'dim':
-          if (caps.includes('dim')) return 'dim';
-          break;
-        case 'set_temperature':
-          if (caps.includes('target_temperature')) return 'target_temperature';
-          break;
-        case 'open':
-          if (caps.includes('windowcoverings_set')) return 'windowcoverings_set';
-          break;
-        case 'close':
-          if (caps.includes('windowcoverings_set')) return 'windowcoverings_set';
-          break;
-        case 'lock':
-          if (caps.includes('locked')) return 'locked';
-          break;
-        case 'unlock':
-          if (caps.includes('locked')) return 'locked';
-          break;
-        case 'speaker_next':
-          if (caps.includes('speaker_next')) return 'speaker_next';
-          break;
-        case 'speaker_prev':
-          if (caps.includes('speaker_prev')) return 'speaker_prev';
-          break;
-        case 'play_music':
-          if (caps.includes('speaker_playing')) return 'speaker_playing';
-          break;
-        case 'stop_music':
-          if (caps.includes('speaker_playing')) return 'speaker_playing';
-          break;
-      }
-
-      // Fallback: check if device directly supports the command
-      if (caps.includes(command)) return command;
-      return null;
-    }
-
-    // Enhanced value determination for different command types
-    function getValueForCommand(command, parameters = {}) {
-      switch (command) {
-        case 'turn_on':
-          return true;
-        case 'turn_off':
-          return false;
-        case 'open':
-          return 1; // Fully open
-        case 'close':
-          return 0; // Fully closed
-        case 'lock':
-          return true;
-        case 'unlock':
-          return false;
-        case 'dim':
-          // Use provided value or default to 50%
-          return parameters.dim_level || 0.5;
-        case 'set_temperature':
-          // Use provided temperature or default to 21°C
-          return parameters.temperature || 21;
-        case 'speaker_next':
-        case 'speaker_prev':
-          return true; // Trigger action
-        case 'play_music':
-          return true; // Start playing
-        case 'stop_music':
-          return false; // Stop playing
-        default:
-          // For boolean capabilities, default to true
-          return true;
-      }
-    }
-
-    // ---------- Room Command Branch ----------
     if (jsonCommand.room) {
-      const homeState = await this.getHomeState();
-      const zones = homeState.zones;
-
-      // Enhanced room matching with fuzzy logic
-      const targetZoneIds = Object.keys(zones).filter(zoneId => {
-        const zoneName = zones[zoneId].name.toLowerCase();
-        const roomQuery = jsonCommand.room.toLowerCase();
-
-        // Exact match
-        if (zoneName === roomQuery) return true;
-
-        // Contains match
-        if (zoneName.includes(roomQuery) || roomQuery.includes(zoneName)) return true;
-
-        // Enhanced multilingual translations
-        const translations = {
-          'vardagsrum': ['living room', 'lounge', 'livingroom'],
-          'vardagsrummet': ['living room', 'lounge', 'livingroom'],
-          'sovrum': ['bedroom', 'bed room'],
-          'sovrummet': ['bedroom', 'bed room'],
-          'kök': ['kitchen'],
-          'köket': ['kitchen'],
-          'badrum': ['bathroom', 'bath room'],
-          'badrummet': ['bathroom', 'bath room'],
-          'hall': ['hallway', 'entrance'],
-          'hallen': ['hallway', 'entrance'],
-          'kontor': ['office', 'study'],
-          'kontoret': ['office', 'study'],
-          'trädgård': ['garden', 'yard', 'trägården'],
-          'trädgården': ['garden', 'yard', 'trägården'],
-          'garden': ['trädgård', 'trädgården', 'yard'],
-          // Spanish
-          'sala de estar': ['living room', 'lounge'],
-          'dormitorio': ['bedroom'],
-          'cocina': ['kitchen'],
-          'baño': ['bathroom'],
-          'oficina': ['office'],
-          // French
-          'salon': ['living room', 'lounge'],
-          'chambre': ['bedroom'],
-          'cuisine': ['kitchen'],
-          'salle de bain': ['bathroom'],
-          'bureau': ['office'],
-          // German
-          'wohnzimmer': ['living room', 'lounge'],
-          'schlafzimmer': ['bedroom'],
-          'küche': ['kitchen'],
-          'badezimmer': ['bathroom'],
-          'büro': ['office'],
-          // Italian
-          'soggiorno': ['living room', 'lounge'],
-          'camera da letto': ['bedroom'],
-          'cucina': ['kitchen'],
-          'bagno': ['bathroom'],
-          'ufficio': ['office']
-        };
-
-        for (const [foreignWord, englishWords] of Object.entries(translations)) {
-          // Check if room query is in foreign language and zone name is in English
-          if (roomQuery.includes(foreignWord.toLowerCase())
-              && englishWords.some(e => zoneName.includes(e.toLowerCase()))) {
-            return true;
-          }
-          // Check if zone name is in foreign language and room query is in English
-          if (zoneName.includes(foreignWord.toLowerCase())
-              && englishWords.some(e => roomQuery.includes(e.toLowerCase()))) {
-            return true;
-          }
-          // Check if both are in English but different variations
-          if (englishWords.some(e => roomQuery.includes(e.toLowerCase()))
-              && englishWords.some(e => zoneName.includes(e.toLowerCase()))) {
-            return true;
-          }
-        }
-
-        return false;
-      });
-
-      this.log(`Room matching: "${jsonCommand.room}" -> zones:`, targetZoneIds.map(id => zones[id].name));
-
-      if (targetZoneIds.length === 0) {
-        const availableRooms = Object.values(zones).map(z => z.name).join(', ');
-        throw new Error(`No room matching "${jsonCommand.room}" found. Available rooms: ${availableRooms}`);
-      }
-
-      const devicesObj = await this.getDevicesMapping();
-      const devices = Object.values(devicesObj);
-
-      // Filter devices in target zones that support the command
-      let targetDevices = devices.filter(device => {
-        if (!targetZoneIds.includes(device.zone)) return false;
-        return getCapabilityForCommand(device, jsonCommand.command) !== null;
-      });
-
-      // Enhanced smart filtering based on command context and device_filter
-      if (jsonCommand.device_filter) {
-        // Explicit device filter specified
-        const filteredDevices = targetDevices.filter(device => {
-          if (jsonCommand.device_filter === 'light') {
-            // Include actual lights
-            if (device.class === 'light') return true;
-            // Include sockets that control lights based on Homey metadata or intelligent analysis
-            if (device.class === 'socket' && isLightControllingSocket(device)) return true;
-            return false;
-          } if (jsonCommand.device_filter === 'speaker') {
-            return device.class === 'speaker';
-          } if (jsonCommand.device_filter === 'socket') {
-            return device.class === 'socket';
-          } if (jsonCommand.device_filter === 'thermostat') {
-            return device.class === 'thermostat';
-          }
-          return device.class === jsonCommand.device_filter;
-        });
-
-        if (filteredDevices.length > 0) {
-          this.log(`Filtering to ${jsonCommand.device_filter} devices only`);
-          targetDevices = filteredDevices;
-        } else {
-          // Log what device classes we found when filtering fails
-          const availableClasses = targetDevices.map(d => `${d.name}(${d.class})`).join(', ');
-          this.log(`No ${jsonCommand.device_filter} devices found. Available: ${availableClasses}`);
-          // When explicit device filter is specified and no matching devices found, don't fall back
-          targetDevices = [];
-        }
-      }
-      // Fallback to original smart filtering for commands without explicit filter
-      else if (jsonCommand.command === 'turn_on' || jsonCommand.command === 'turn_off') {
-        // Get the original command text from the preprocessing
-        const originalCommand = this.lastProcessedCommand || '';
-
-        // If the original command mentions lights/lamps specifically, filter to lights only
-        if (/light|lights|lamp|lamps|ljus|lampa|lampor|ligt|ligts|belysning/i.test(originalCommand)) {
-          const lightDevices = targetDevices.filter(device => device.class === 'light');
-          if (lightDevices.length > 0) {
-            this.log(`Filtering to lights only based on command: "${originalCommand}"`);
-            targetDevices = lightDevices;
-          }
-        }
-        // If no specific device type mentioned, but it's a generic room command, prefer lights
-        else if (!/socket|speaker|tv|camera|lock|sensor|thermostat/i.test(originalCommand)) {
-          const lightDevices = targetDevices.filter(device => device.class === 'light');
-          const controllableDevices = targetDevices.filter(device => isControllableDeviceClass(device.class));
-
-          // If we have lights and the command seems generic, prefer lights
-          if (lightDevices.length > 0 && lightDevices.length >= controllableDevices.length * 0.3) {
-            this.log(`Preferring lights for generic room command: "${originalCommand}"`);
-            targetDevices = lightDevices;
-          }
-          // Otherwise, exclude read-only devices but keep controllable ones
-          else {
-            this.log(`Using controllable devices for generic room command: "${originalCommand}"`);
-            targetDevices = controllableDevices;
-          }
-        }
-      }
-
-      // Log details about the devices we're about to process
-      const deviceDetails = targetDevices.map(d => `${d.name}(${d.class})`).join(', ');
-      this.log(`Found ${targetDevices.length} compatible devices for command "${jsonCommand.command}": ${deviceDetails}`);
-
-      if (targetDevices.length === 0) {
-        const deviceClasses = [...new Set(devices
-          .filter(d => targetZoneIds.includes(d.zone))
-          .map(d => d.class))].join(', ');
-        throw new Error(`No devices supporting "${jsonCommand.command}" found in "${jsonCommand.room}". Available device types: ${deviceClasses}`);
-      }
-
-      // Parallel device processing for better performance
-      const devicePromises = targetDevices.map(async (device) => {
-        try {
-          const cap = getCapabilityForCommand(device, jsonCommand.command);
-          if (!cap) {
-            return { device: device.name, success: false, message: `doesn't support ${jsonCommand.command}`, icon: '⚠️' };
-          }
-
-          const value = getValueForCommand(jsonCommand.command, jsonCommand.parameters);
-          await device.setCapabilityValue(cap, value);
-          return { device: device.name, success: true, message: `${jsonCommand.command} successful`, icon: '✅' };
-        } catch (error) {
-          return { device: device.name, success: false, message: error.message, icon: '❌' };
-        }
-      });
-
-      // Wait for all device operations to complete
-      const deviceResults = await Promise.allSettled(devicePromises);
-
-      // Process results and count successes
-      const results = [];
-      let successCount = 0;
-
-      deviceResults.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          const deviceResult = result.value;
-          results.push(`${deviceResult.icon} ${deviceResult.device}: ${deviceResult.message}`);
-          if (deviceResult.success) successCount++;
-        } else {
-          // Handle promise rejection (shouldn't happen with our error handling, but safety first)
-          const deviceName = targetDevices[index]?.name || 'Unknown device';
-          results.push(`❌ ${deviceName}: Promise rejected - ${result.reason?.message || 'Unknown error'}`);
-        }
-      });
-
-      const summary = `${successCount}/${targetDevices.length} devices updated in ${jsonCommand.room}`;
-      return `${summary}\n${results.join('\n')}`;
+      return await this.handleRoomCommand(jsonCommand);
     }
-    // ---------- Multiple Device IDs Command Branch ----------
     if (jsonCommand.device_ids) {
-      const devicesObj = await this.getDevicesMapping();
-      const devices = Object.values(devicesObj);
-
-      // Parallel processing for multiple device IDs
-      const devicePromises = jsonCommand.device_ids.map(async (id) => {
-        const device = devices.find(d => d.id === id);
-        if (!device) {
-          return { device: `Device ${id}`, success: false, message: 'not found', icon: '❌' };
-        }
-
-        try {
-          const cap = getCapabilityForCommand(device, jsonCommand.command);
-          if (!cap) {
-            return { device: device.name, success: false, message: `doesn't support ${jsonCommand.command}`, icon: '⚠️' };
-          }
-
-          const value = getValueForCommand(jsonCommand.command, jsonCommand.parameters);
-          await device.setCapabilityValue(cap, value);
-          return { device: device.name, success: true, message: `${jsonCommand.command} successful`, icon: '✅' };
-        } catch (error) {
-          return { device: device.name, success: false, message: error.message, icon: '❌' };
-        }
-      });
-
-      // Wait for all device operations to complete
-      const deviceResults = await Promise.allSettled(devicePromises);
-
-      // Process results and count successes
-      const results = [];
-      let successCount = 0;
-
-      deviceResults.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          const deviceResult = result.value;
-          results.push(`${deviceResult.icon} ${deviceResult.device}: ${deviceResult.message}`);
-          if (deviceResult.success) successCount++;
-        } else {
-          // Handle promise rejection
-          const deviceId = jsonCommand.device_ids[index];
-          results.push(`❌ Device ${deviceId}: Promise rejected - ${result.reason?.message || 'Unknown error'}`);
-        }
-      });
-
-      const summary = `${successCount}/${jsonCommand.device_ids.length} devices updated`;
-      return `${summary}\n${results.join('\n')}`;
+      return await this.handleMultiDeviceCommand(jsonCommand);
     }
-    // ---------- Single Device Command Branch ----------
     if (jsonCommand.device_id) {
-      const devicesObj = await this.getDevicesMapping();
-      const devices = Object.values(devicesObj);
-      const device = devices.find(d => d.id === jsonCommand.device_id);
-
-      if (!device) {
-        throw new Error(`❌ Device ${jsonCommand.device_id} not found`);
-      }
-
-      try {
-        const cap = getCapabilityForCommand(device, jsonCommand.command);
-        if (!cap) {
-          const availableCaps = getCapabilityKeys(device).join(', ');
-          throw new Error(`⚠️ ${device.name} doesn't support "${jsonCommand.command}". Available capabilities: ${availableCaps}`);
-        }
-
-        const value = getValueForCommand(jsonCommand.command, jsonCommand.parameters);
-        await device.setCapabilityValue(cap, value);
-        return `✅ ${device.name}: ${jsonCommand.command} successful`;
-      } catch (error) {
-        throw new Error(`❌ ${device.name}: ${error.message}`);
-      }
-    } else {
-      throw new Error('❌ Invalid command format: must include "room", "device_ids", or "device_id"');
+      return await this.handleSingleDeviceCommand(jsonCommand);
     }
+    throw new Error('❌ Invalid command format: must include "room", "device_ids", or "device_id"');
   }
 
   /**
-   * Homey App initialization method.
-   * Performs setup of devices, APIs, and external modules.
-   * @returns {Promise<void>}
+   * Refactored: Handles Homey commands for a room.
    */
-  async onInit() {
-    this.log('ChatGPT Assistant initializing...');
-    this.log('Checking environment variables...');
+  async handleRoomCommand(jsonCommand) {
+    const homeState = await this.getHomeState();
+    const zones = homeState.zones;
 
-    // Minimal debug logging for Homey properties.
-    this.log('Homey properties:', Object.keys(this.homey));
-    if (this.homey.managers) this.log('Managers:', Object.keys(this.homey.managers));
-    if (this.homey.api && this.homey.api.devices) this.log('Homey API devices available');
-    if (this.homey.drivers && typeof this.homey.drivers.getDrivers === 'function') this.log('Drivers API available');
+    // Enhanced room matching with fuzzy logic
+    const targetZoneIds = Object.keys(zones).filter(zoneId => {
+      const zoneName = zones[zoneId].name.toLowerCase();
+      const roomQuery = jsonCommand.room.toLowerCase();
 
-    const telegramToken = this.homey.settings.get('telegramBotToken');
-    const openaiKey = this.homey.settings.get('openaiApiKey');
-    if (!telegramToken || !openaiKey) {
-      this.log('API keys not configured. Running in limited mode.');
-      return;
+      // Exact match
+      if (zoneName === roomQuery) return true;
+
+      // Contains match
+      if (zoneName.includes(roomQuery) || roomQuery.includes(zoneName)) return true;
+
+      // Enhanced multilingual translations
+      const translations = {
+        'vardagsrum': ['living room', 'lounge', 'livingroom'],
+        'vardagsrummet': ['living room', 'lounge', 'livingroom'],
+        'sovrum': ['bedroom', 'bed room'],
+        'sovrummet': ['bedroom', 'bed room'],
+        'kök': ['kitchen'],
+        'köket': ['kitchen'],
+        'badrum': ['bathroom', 'bath room'],
+        'badrummet': ['bathroom', 'bath room'],
+        'hall': ['hallway', 'entrance'],
+        'hallen': ['hallway', 'entrance'],
+        'kontor': ['office', 'study'],
+        'kontoret': ['office', 'study'],
+        'trädgård': ['garden', 'yard', 'trägården'],
+        'trädgården': ['garden', 'yard', 'trägården'],
+        'garden': ['trädgård', 'trädgården', 'yard'],
+        // Spanish
+        'sala de estar': ['living room', 'lounge'],
+        'dormitorio': ['bedroom'],
+        'cocina': ['kitchen'],
+        'baño': ['bathroom'],
+        'oficina': ['office'],
+        // French
+        'salon': ['living room', 'lounge'],
+        'chambre': ['bedroom'],
+        'cuisine': ['kitchen'],
+        'salle de bain': ['bathroom'],
+        'bureau': ['office'],
+        // German
+        'wohnzimmer': ['living room', 'lounge'],
+        'schlafzimmer': ['bedroom'],
+        'küche': ['kitchen'],
+        'badezimmer': ['bathroom'],
+        'büro': ['office'],
+        // Italian
+        'soggiorno': ['living room', 'lounge'],
+        'camera da letto': ['bedroom'],
+        'cucina': ['kitchen'],
+        'bagno': ['bathroom'],
+        'ufficio': ['office']
+      };
+
+      for (const [foreignWord, englishWords] of Object.entries(translations)) {
+        // Check if room query is in foreign language and zone name is in English
+        if (roomQuery.includes(foreignWord.toLowerCase())
+            && englishWords.some(e => zoneName.includes(e.toLowerCase()))) {
+          return true;
+        }
+        // Check if zone name is in foreign language and room query is in English
+        if (zoneName.includes(foreignWord.toLowerCase())
+            && englishWords.some(e => roomQuery.includes(e.toLowerCase()))) {
+          return true;
+        }
+        // Check if both are in English but different variations
+        if (englishWords.some(e => roomQuery.includes(e.toLowerCase()))
+            && englishWords.some(e => zoneName.includes(e.toLowerCase()))) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    this.log(`Room matching: "${jsonCommand.room}" -> zones:`, targetZoneIds.map(id => zones[id].name));
+
+    if (targetZoneIds.length === 0) {
+      const availableRooms = Object.values(zones).map(z => z.name).join(', ');
+      throw new Error(`No room matching "${jsonCommand.room}" found. Available rooms: ${availableRooms}`);
     }
-    this.log('Settings loaded.');
 
-    // Initialize secure key management
-    try {
-      this.log('Initializing secure key management...');
-      initializeKeys({
-        openaiApiKey: openaiKey,
-        telegramBotToken: telegramToken
+    const devicesObj = await this.getDevicesMapping();
+    const devices = Object.values(devicesObj);
+
+    // Filter devices in target zones that support the command
+    let targetDevices = devices.filter(device => {
+      if (!targetZoneIds.includes(device.zone)) return false;
+      return ChatGPTAssistant.getCapabilityForCommand(device, jsonCommand.command) !== null;
+    });
+
+    // Enhanced smart filtering based on command context and device_filter
+    if (jsonCommand.device_filter) {
+      // Explicit device filter specified
+      const filteredDevices = targetDevices.filter(device => {
+        if (jsonCommand.device_filter === 'light') {
+          // Include actual lights
+          if (device.class === 'light') return true;
+          // Include sockets that control lights based on Homey metadata or intelligent analysis
+          if (device.class === 'socket' && ChatGPTAssistant.isLightControllingSocket(device)) return true;
+          return false;
+        } else if (jsonCommand.device_filter === 'socket') {
+          // Only sockets, not lights
+          return device.class === 'socket' && !ChatGPTAssistant.isLightControllingSocket(device);
+        } else if (jsonCommand.device_filter === 'speaker') {
+          return device.class === 'speaker';
+        } else if (jsonCommand.device_filter === 'thermostat') {
+          return device.class === 'thermostat';
+        }
+        return device.class === jsonCommand.device_filter;
       });
-      this.log('API keys stored securely.');
-    } catch (error) {
-      this.error('Failed to initialize secure key management:', error.message);
-      throw error;
+
+      if (filteredDevices.length > 0) {
+        this.log(`Filtering to ${jsonCommand.device_filter} devices only`);
+        targetDevices = filteredDevices;
+      } else {
+        // Log what device classes we found when filtering fails
+        const availableClasses = targetDevices.map(d => `${d.name}(${d.class})`).join(', ');
+        this.log(`No ${jsonCommand.device_filter} devices found. Available: ${availableClasses}`);
+        // When explicit device filter is specified and no matching devices found, don't fall back
+        targetDevices = [];
+      }
+    }
+    // Fallback to original smart filtering for commands without explicit filter
+    else if (jsonCommand.command === 'turn_on' || jsonCommand.command === 'turn_off') {
+      // Get the original command text from the preprocessing
+      const originalCommand = this.lastProcessedCommand || '';
+      // If the original command mentions lights/lamps specifically, filter to lights only
+      if (/light|lights|lamp|lamps|ljus|lampa|lampor|ligt|ligts|belysning/i.test(originalCommand)) {
+        const lightDevices = targetDevices.filter(device => device.class === 'light' || (device.class === 'socket' && ChatGPTAssistant.isLightControllingSocket(device)));
+        if (lightDevices.length > 0) {
+          this.log(`Filtering to lights only based on command: "${originalCommand}"`);
+          targetDevices = lightDevices;
+        }
+      }
+      // If no specific device type mentioned, but it's a generic room command, prefer lights (including sockets controlling lights)
+      else if (!/socket|speaker|tv|camera|lock|sensor|thermostat/i.test(originalCommand)) {
+        const lightDevices = targetDevices.filter(device => device.class === 'light' || (device.class === 'socket' && ChatGPTAssistant.isLightControllingSocket(device)));
+        const controllableDevices = targetDevices.filter(device => ChatGPTAssistant.isControllableDeviceClass(device.class));
+        if (lightDevices.length > 0 && lightDevices.length >= controllableDevices.length * 0.3) {
+          this.log(`Preferring lights for generic room command: "${originalCommand}"`);
+          targetDevices = lightDevices;
+        } else {
+          this.log(`Using controllable devices for generic room command: "${originalCommand}"`);
+          targetDevices = controllableDevices;
+        }
+      }
     }
 
-    // List and map devices (minimal logging).
-    await this.listAllDevices();
-    await this.mapDevices();
+    // Log details about the devices we're about to process
+    const deviceDetails = targetDevices.map(d => `${d.name}(${d.class})`).join(', ');
+    this.log(`Found ${targetDevices.length} compatible devices for command "${jsonCommand.command}": ${deviceDetails}`);
+
+    if (targetDevices.length === 0) {
+      const deviceClasses = [...new Set(devices
+        .filter(d => targetZoneIds.includes(d.zone))
+        .map(d => d.class))].join(', ');
+      throw new Error(`No devices supporting "${jsonCommand.command}" found in "${jsonCommand.room}". Available device types: ${deviceClasses}`);
+    }
+
+    // Parallel device processing for better performance
+    const devicePromises = targetDevices.map(async (device) => {
+      try {
+        const cap = ChatGPTAssistant.getCapabilityForCommand(device, jsonCommand.command);
+        if (!cap) {
+          return { device: device.name, success: false, message: `doesn't support ${jsonCommand.command}`, icon: '⚠️' };
+        }
+
+        const value = ChatGPTAssistant.getValueForCommand(jsonCommand.command, jsonCommand.parameters);
+        await device.setCapabilityValue(cap, value);
+        return { device: device.name, success: true, message: `${jsonCommand.command} successful`, icon: '✅' };
+      } catch (error) {
+        return { device: device.name, success: false, message: error.message, icon: '❌' };
+      }
+    });
+
+    // Wait for all device operations to complete
+    const deviceResults = await Promise.allSettled(devicePromises);
+
+    // Process results and count successes
+    const results = [];
+    let successCount = 0;
+
+    deviceResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        const deviceResult = result.value;
+        results.push(`${deviceResult.icon} ${deviceResult.device}: ${deviceResult.message}`);
+        if (deviceResult.success) successCount++;
+      } else {
+        // Handle promise rejection
+        const deviceName = targetDevices[index]?.name || `Device ${index}`;
+        results.push(`❌ ${deviceName}: Promise rejected - ${result.reason?.message || 'Unknown error'}`);
+      }
+    });
+
+    const summary = `${successCount}/${targetDevices.length} devices updated in ${jsonCommand.room}`;
+    return `${summary}\n${results.join('\n')}`;
+  }
+
+  /**
+   * Handles Homey commands for multiple device_ids (parallel processing)
+   */
+  async handleMultiDeviceCommand(jsonCommand) {
+    const devicesObj = await this.getDevicesMapping();
+    const devices = Object.values(devicesObj);
+    const targetIds = Array.isArray(jsonCommand.device_ids) ? jsonCommand.device_ids : [];
+    if (targetIds.length === 0) {
+      throw new Error('No device_ids specified for multi-device command');
+    }
+    const targetDevices = devices.filter(d => targetIds.includes(d.id));
+    if (targetDevices.length === 0) {
+      throw new Error('No matching devices found for device_ids: ' + targetIds.join(', '));
+    }
+    // Parallel device processing
+    const devicePromises = targetDevices.map(async (device) => {
+      try {
+        const cap = ChatGPTAssistant.getCapabilityForCommand(device, jsonCommand.command);
+        if (!cap) {
+          return { device: device.name, success: false, message: `doesn't support ${jsonCommand.command}`, icon: '⚠️' };
+        }
+        const value = ChatGPTAssistant.getValueForCommand(jsonCommand.command, jsonCommand.parameters);
+        await device.setCapabilityValue(cap, value);
+        return { device: device.name, success: true, message: `${jsonCommand.command} successful`, icon: '✅' };
+      } catch (error) {
+        return { device: device.name, success: false, message: error.message, icon: '❌' };
+      }
+    });
+    const deviceResults = await Promise.allSettled(devicePromises);
+    const results = [];
+    let successCount = 0;
+    deviceResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        const deviceResult = result.value;
+        results.push(`${deviceResult.icon} ${deviceResult.device}: ${deviceResult.message}`);
+        if (deviceResult.success) successCount++;
+      } else {
+        const deviceId = targetIds[index];
+        results.push(`❌ Device ${deviceId}: Promise rejected - ${result.reason?.message || 'Unknown error'}`);
+      }
+    });
+    const summary = `${successCount}/${targetIds.length} devices updated`;
+    return `${summary}\n${results.join('\n')}`;
+  }
+
+  /**
+   * Refactored: Handles Homey commands for a single device.
+   */
+  async handleSingleDeviceCommand(jsonCommand) {
+    const devicesObj = await this.getDevicesMapping();
+    const devices = Object.values(devicesObj);
+    const device = devices.find(d => d.id === jsonCommand.device_id);
+
+    if (!device) {
+      throw new Error(`❌ Device ${jsonCommand.device_id} not found`);
+    }
 
     try {
-      this.log('Initializing ChatGPT module...');
-      await this.chatgpt.initChatGPT(openaiKey);
-      this.log('ChatGPT module initialized.');
+      const cap = ChatGPTAssistant.getCapabilityForCommand(device, jsonCommand.command);
+      if (!cap) {
+        const availableCaps = getCapabilityKeys(device).join(', ');
+        throw new Error(`⚠️ ${device.name} doesn't support "${jsonCommand.command}". Available capabilities: ${availableCaps}`);
+      }
 
-      this.log('Initializing Whisper module...');
-      initWhisper(openaiKey);
-      this.log('Whisper module initialized.');
-
-      this.log('Initializing Telegram bot...');
-      await this.telegram.initBot(telegramToken);
-      this.log('Telegram bot initialized.');
-
-      // Delegate Telegram listener setup to the new module
-      initTelegramListener(this);
-
-      this.log('ChatGPT Assistant initialized.');
+      const value = ChatGPTAssistant.getValueForCommand(jsonCommand.command, jsonCommand.parameters);
+      await device.setCapabilityValue(cap, value);
+      return `✅ ${device.name}: ${jsonCommand.command} successful`;
     } catch (error) {
-      this.error('Initialization failed:', error.message);
-      throw error;
+      throw new Error(`❌ ${device.name}: ${error.message}`);
+    }
+  }
+
+  // Helper functions as static methods
+  static isControllableDeviceClass(deviceClass) {
+    const readOnlyClasses = ['sensor', 'camera', 'button', 'other'];
+    const limitedControlClasses = ['thermostat'];
+    if (readOnlyClasses.includes(deviceClass)) {
+      return false;
+    }
+    return !limitedControlClasses.includes(deviceClass);
+  }
+
+  static isLightControllingSocket(device) {
+    if (device.class !== 'socket') return false;
+    try {
+      if (device.settings) {
+        const lightSettings = ['purpose', 'category', 'device_type', 'connected_device', 'usage', 'type'];
+        for (const setting of lightSettings) {
+          if (device.settings[setting]) {
+            const value = device.settings[setting].toString().toLowerCase();
+            if (value.includes('light') || value.includes('lamp') || value.includes('ljus') || value.includes('lampa')) {
+              return true;
+            }
+          }
+        }
+      }
+      if (device.data) {
+        const dataKeys = Object.keys(device.data);
+        for (const key of dataKeys) {
+          if (typeof device.data[key] === 'string') {
+            const value = device.data[key].toLowerCase();
+            if (value.includes('light') || value.includes('lamp')) {
+              return true;
+            }
+          }
+        }
+      }
+      if (device.store) {
+        const storeKeys = Object.keys(device.store);
+        for (const key of storeKeys) {
+          if (typeof device.store[key] === 'string') {
+            const value = device.store[key].toLowerCase();
+            if (value.includes('light') || value.includes('lamp')) {
+              return true;
+            }
+          }
+        }
+      }
+      if (device.capabilities) {
+        if (device.capabilities.includes('dim') || device.capabilities.includes('light_hue') ||
+            device.capabilities.includes('light_saturation') || device.capabilities.includes('light_temperature')) {
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  static getCapabilityForCommand(device, command) {
+    const caps = getCapabilityKeys(device);
+    const deviceClass = device.class;
+    if (command === 'turn_on' || command === 'turn_off') {
+      if (caps.includes('onoff')) return 'onoff';
+      switch (deviceClass) {
+        case 'speaker':
+          if (caps.includes('speaker_playing')) return 'speaker_playing';
+          break;
+        case 'curtain':
+        case 'blinds':
+          if (caps.includes('windowcoverings_set')) return 'windowcoverings_set';
+          break;
+        case 'lock':
+          if (caps.includes('locked')) return 'locked';
+          break;
+        case 'thermostat':
+          return null;
+        case 'sensor':
+          return null;
+      }
+      return null;
+    }
+    switch (command) {
+      case 'dim':
+        if (caps.includes('dim')) return 'dim';
+        break;
+      case 'set_temperature':
+        if (caps.includes('target_temperature')) return 'target_temperature';
+        break;
+      case 'open':
+      case 'close':
+        if (caps.includes('windowcoverings_set')) return 'windowcoverings_set';
+        break;
+      case 'lock':
+      case 'unlock':
+        if (caps.includes('locked')) return 'locked';
+        break;
+      case 'speaker_next':
+        if (caps.includes('speaker_next')) return 'speaker_next';
+        break;
+      case 'speaker_prev':
+        if (caps.includes('speaker_prev')) return 'speaker_prev';
+        break;
+      case 'play_music':
+      case 'stop_music':
+        if (caps.includes('speaker_playing')) return 'speaker_playing';
+        break;
+    }
+    if (caps.includes(command)) return command;
+    return null;
+  }
+
+  static getValueForCommand(command, parameters = {}) {
+    switch (command) {
+      case 'turn_on':
+        return true;
+      case 'turn_off':
+        return false;
+      case 'open':
+        return 1;
+      case 'close':
+        return 0;
+      case 'lock':
+        return true;
+      case 'unlock':
+        return false;
+      case 'dim':
+        return parameters.dim_level || 0.5;
+      case 'set_temperature':
+        return parameters.temperature || 21;
+      case 'speaker_next':
+      case 'speaker_prev':
+        return true;
+      case 'play_music':
+        return true;
+      case 'stop_music':
+        return false;
+      default:
+        return true;
     }
   }
 }

@@ -273,7 +273,8 @@ function extractEntities(text, multilingualResult = null) {
   const devicePatterns = {
     'light': /\b(light|lights|ligt|ligts|lamp|lamps|ljus|lampa|lampor|belysning)\b/i,
     'speaker': /\b(speaker|speakers|music|audio|högtalare)\b/i,
-    'thermostat': /\b(thermostat|heating|temperature|värme|temp)\b/i,
+    'thermostat': /\b(thermostat|heating|värme)\b/i,
+    'temperature': /\b(temperature|temp)\b/i,
     'fan': /\b(fan|fans|fläkt|fläktar|ventilation)\b/i,
     'curtain': /\b(curtain|curtains|blind|blinds|gardin|gardiner)\b/i,
     'lock': /\b(lock|locks|lås|door|dörr)\b/i,
@@ -405,7 +406,7 @@ function suggestImprovement(processedCommand) {
 /**
  * Parses a multi-command string into individual command components
  * @param {string} text - The multi-command text
- * @returns {Array} Array of individual command objects
+ * @returns {Object} Object with isMultiCommand property and commands array
  */
 function parseMultiCommand(text) {
   // Split on common connectors while preserving context
@@ -430,7 +431,7 @@ function parseMultiCommand(text) {
   });
 
   // Clean and process each command
-  return commands
+  const processedCommands = commands
     .map(cmd => cmd.trim())
     .filter(cmd => cmd.length > 0)
     .map(cmd => {
@@ -444,6 +445,12 @@ function parseMultiCommand(text) {
         confidence: processed.confidence
       };
     });
+
+  return {
+    isMultiCommand: processedCommands.length > 1,
+    commands: processedCommands,
+    commandCount: processedCommands.length
+  };
 }
 
 module.exports = {

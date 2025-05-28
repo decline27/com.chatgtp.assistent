@@ -50,6 +50,96 @@
           }
         }
       ]
+    },
+    {
+      "type": "group",
+      "title": {
+        "en": "Bot Configuration"
+      },
+      "children": [
+        {
+          "id": "pollInterval",
+          "type": "number",
+          "title": {
+            "en": "Poll Interval (ms)"
+          },
+          "value": 1000,
+          "min": 100,
+          "max": 10000,
+          "hint": {
+            "en": "How often to check for new Telegram messages (milliseconds, minimum 100)"
+          }
+        },
+        {
+          "id": "processingIndicatorThreshold",
+          "type": "number",
+          "title": {
+            "en": "Processing Indicator Threshold"
+          },
+          "value": 50,
+          "min": 0,
+          "max": 2000,
+          "hint": {
+            "en": "Show processing indicator for messages longer than this many characters"
+          }
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "title": {
+        "en": "Access Control"
+      },
+      "children": [
+        {
+          "id": "authorizedUsers",
+          "type": "textarea",
+          "title": {
+            "en": "Authorized User IDs"
+          },
+          "value": "",
+          "hint": {
+            "en": "Comma-separated list of Telegram user IDs who can use the bot. Leave empty to allow all users."
+          }
+        },
+        {
+          "id": "enableRateLimit",
+          "type": "checkbox",
+          "title": {
+            "en": "Enable Rate Limiting"
+          },
+          "value": true,
+          "hint": {
+            "en": "Limit how often users can send commands to prevent spam"
+          }
+        },
+        {
+          "id": "rateLimitRequests",
+          "type": "number",
+          "title": {
+            "en": "Rate Limit: Max Requests"
+          },
+          "value": 10,
+          "min": 1,
+          "max": 100,
+          "hint": {
+            "en": "Maximum number of requests per time window"
+          }
+        },
+        {
+          "id": "rateLimitWindow",
+          "type": "number",
+          "title": {
+            "en": "Rate Limit: Time Window (seconds)"
+          },
+          "value": 60,
+          "min": 10,
+          "max": 3600,
+          "hint": {
+            "en": "Time window for rate limiting in seconds"
+          }
+        }
+      ]
     }
   ],
   "images": {

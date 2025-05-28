@@ -180,6 +180,18 @@ function parseStatusQuery(queryText, language = 'en') {
         target = 'all devices';
       }
 
+      // Check if we have both room and device type - this should be DEVICE_TYPE_STATUS
+      if (room && target) {
+        const deviceTypeKeywords = ['light', 'lights', 'lamp', 'lamps', 'thermostat', 'thermostats', 
+                                   'sensor', 'sensors', 'device', 'devices', 'switch', 'switches',
+                                   'speaker', 'speakers', 'lock', 'locks', 'socket', 'sockets',
+                                   'ljus', 'lampor', 'värme', 'sensor', 'enheter', 'växlar'];
+        
+        if (deviceTypeKeywords.some(keyword => target.toLowerCase().includes(keyword))) {
+          queryType = QUERY_TYPES.DEVICE_TYPE_STATUS;
+        }
+      }
+
       // Check if target is just a room name (like "living room", "kitchen")
       const roomWords = ['room', 'kitchen', 'bedroom', 'bathroom', 'living', 'dining', 'office', 'garden',
                         'vardagsrum', 'kök', 'sovrum', 'badrum', 'kontor', 'trädgård'];
