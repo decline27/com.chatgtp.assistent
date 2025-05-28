@@ -69,6 +69,138 @@ class ChatGPTAssistant extends Homey.App {
   }
 
   /**
+   * Called when the app is initialized
+   */
+  async onInit() {
+    try {
+      this.log('Initializing ChatGPT Assistant...');
+
+      // Initialize secure key manager
+      const homeySettings = this.homey.settings;
+      const openaiKey = homeySettings.get('openaiApiKey');
+      const telegramToken = homeySettings.get('telegramBotToken');
+
+      if (!openaiKey) {
+        this.error('OpenAI API key not found in settings. Please configure it in the app settings.');
+        this.log('App will remain in standby mode until API keys are configured.');
+        this._initializationPending = true;
+        this._setupSettingsListener(); // Listen for settings changes
+        return; // Don't throw error, just return
+      }
+
+      if (!telegramToken) {
+        this.error('Telegram bot token not found in settings. Please configure it in the app settings.');
+        this.log('App will remain in standby mode until API keys are configured.');
+        this._initializationPending = true;
+        this._setupSettingsListener(); // Listen for settings changes
+        return; // Don't throw error, just return
+      }
+
+      // Initialize all modules
+      await this._initializeModules(openaiKey, telegramToken);
+      this._initializationPending = false;
+      this.log('ChatGPT Assistant initialized successfully.');
+
+    } catch (error) {
+      this.error('Initialization failed:', error.message);
+      this._initializationPending = true;
+      this._setupSettingsListener(); // Listen for settings changes even on error
+      // Don't throw error to prevent app from crashing
+    }
+  }
+
+  /**
+   * Setup settings listener to reinitialize when API keys are configured
+   */
+  _setupSettingsListener() {
+    if (this._settingsListenerSetup) return; // Prevent multiple listeners
+
+    this.homey.settings.on('set', async (key) => {
+      if ((key === 'openaiApiKey' || key === 'telegramBotToken') && this._initializationPending) {
+        this.log(`Settings changed: ${key}. Attempting to reinitialize...`);
+        
+        // Small delay to ensure both keys might be set
+        setTimeout(async () => {
+          const openaiKey = this.homey.settings.get('openaiApiKey');
+          const telegramToken = this.homey.settings.get('telegramBotToken');
+          
+          if (openaiKey && telegramToken) {
+            try {
+              this.log('Both API keys configured. Initializing app...');
+              await this._initializeModules(openaiKey, telegramToken);
+              this._initializationPending = false;
+              this.log('ChatGPT Assistant initialized successfully after settings update.');
+            } catch (error) {
+              this.error('Failed to initialize after settings update:', error.message);
+            }
+          }
+        }, 1000);
+      }
+    });
+    
+    this._settingsListenerSetup = true;
+  }
+
+  /**
+   * Initialize all modules with API keys
+   */
+  async _initializeModules(openaiKey, telegramToken) {
+    // Initialize secure key manager with API keys
+    this.log('Initializing secure key manager...');
+    await initializeKeys({
+      openaiApiKey: openaiKey,
+      telegramBotToken: telegramToken
+    });
+
+    // Initialize ChatGPT module
+    this.log('Initializing ChatGPT module...');
+    await this.chatgpt.initChatGPT(openaiKey);
+    this.log('ChatGPT module initialized.');
+
+    // Initialize Whisper module
+    this.log('Initializing Whisper module...');
+    initWhisper(openaiKey);
+    this.log('Whisper module initialized.');
+
+    // Initialize Telegram bot
+    this.log('Initializing Telegram bot...');
+    await this.telegram.initBot(telegramToken);
+    this.log('Telegram bot initialized.');
+
+    // Delegate Telegram listener setup to the new module
+    initTelegramListener(this);
+  }
+
+  /**
+   * Check if the app is properly initialized
+   * @returns {boolean} True if app is initialized, false otherwise
+   */
+  isInitialized() {
+    return !this._initializationPending;
+  }
+
+  /**
+   * Get initialization status message
+   * @returns {string} Status message
+   */
+  getInitializationStatus() {
+    if (this._initializationPending) {
+      const openaiKey = this.homey.settings.get('openaiApiKey');
+      const telegramToken = this.homey.settings.get('telegramBotToken');
+      
+      if (!openaiKey && !telegramToken) {
+        return 'Waiting for OpenAI API key and Telegram bot token to be configured in app settings.';
+      } else if (!openaiKey) {
+        return 'Waiting for OpenAI API key to be configured in app settings.';
+      } else if (!telegramToken) {
+        return 'Waiting for Telegram bot token to be configured in app settings.';
+      }
+      return 'Initialization in progress...';
+    }
+    return 'App is fully initialized and ready.';
+  }
+
+  /**
    * Retrieves the full home state by delegating to homeyApiHelper.
    */
   async getHomeState() {
@@ -780,152 +912,68 @@ class ChatGPTAssistant extends Homey.App {
       if (result.status === 'fulfilled') {
         const deviceResult = result.value;
         results.push(`${deviceResult.icon} ${deviceResult.device}: ${deviceResult.message}`);
-        if (deviceResult.success) successCount++;
+        if (deviceResult.success) {
+          successCount++;
+        }
       } else {
-        const deviceId = targetIds[index];
-        results.push(`❌ Device ${deviceId}: Promise rejected - ${result.reason?.message || 'Unknown error'}`);
+        const device = devices[index];
+        results.push(`❌ ${device.name}: ${result.reason?.message || 'Unknown error'}`);
       }
     });
-    const summary = `${successCount}/${targetIds.length} devices updated`;
-    return `${summary}\n${results.join('\n')}`;
+
+    return {
+      results,
+      successCount,
+      totalDevices: devices.length,
+      summary: `${successCount}/${devices.length} devices controlled successfully`
+    };
   }
 
   /**
-   * Refactored: Handles Homey commands for a single device.
+   * Handles Homey commands for a single device_id
    */
   async handleSingleDeviceCommand(jsonCommand) {
     const devicesObj = await this.getDevicesMapping();
     const devices = Object.values(devicesObj);
-    const device = devices.find(d => d.id === jsonCommand.device_id);
+    const targetDevice = devices.find(d => d.id === jsonCommand.device_id);
+    
+    if (!targetDevice) {
+      throw new Error(`Device with ID "${jsonCommand.device_id}" not found`);
+    }
 
-    if (!device) {
-      throw new Error(`❌ Device ${jsonCommand.device_id} not found`);
+    const cap = ChatGPTAssistant.getCapabilityForCommand(targetDevice, jsonCommand.command);
+    if (!cap) {
+      throw new Error(`Device "${targetDevice.name}" doesn't support "${jsonCommand.command}"`);
     }
 
     try {
-      const cap = ChatGPTAssistant.getCapabilityForCommand(device, jsonCommand.command);
-      if (!cap) {
-        const availableCaps = getCapabilityKeys(device).join(', ');
-        throw new Error(`⚠️ ${device.name} doesn't support "${jsonCommand.command}". Available capabilities: ${availableCaps}`);
-      }
-
       const value = ChatGPTAssistant.getValueForCommand(jsonCommand.command, jsonCommand.parameters);
-      await device.setCapabilityValue(cap, value);
-      return `✅ ${device.name}: ${jsonCommand.command} successful`;
+      await targetDevice.setCapabilityValue(cap, value);
+      return `✅ ${targetDevice.name}: ${jsonCommand.command} successful`;
     } catch (error) {
-      throw new Error(`❌ ${device.name}: ${error.message}`);
+      throw new Error(`❌ ${targetDevice.name}: ${error.message}`);
     }
   }
 
-  // Helper functions as static methods
-  static isControllableDeviceClass(deviceClass) {
-    const readOnlyClasses = ['sensor', 'camera', 'button', 'other'];
-    const limitedControlClasses = ['thermostat'];
-    if (readOnlyClasses.includes(deviceClass)) {
-      return false;
-    }
-    return !limitedControlClasses.includes(deviceClass);
-  }
-
-  static isLightControllingSocket(device) {
-    if (device.class !== 'socket') return false;
-    try {
-      if (device.settings) {
-        const lightSettings = ['purpose', 'category', 'device_type', 'connected_device', 'usage', 'type'];
-        for (const setting of lightSettings) {
-          if (device.settings[setting]) {
-            const value = device.settings[setting].toString().toLowerCase();
-            if (value.includes('light') || value.includes('lamp') || value.includes('ljus') || value.includes('lampa')) {
-              return true;
-            }
-          }
-        }
-      }
-      if (device.data) {
-        const dataKeys = Object.keys(device.data);
-        for (const key of dataKeys) {
-          if (typeof device.data[key] === 'string') {
-            const value = device.data[key].toLowerCase();
-            if (value.includes('light') || value.includes('lamp')) {
-              return true;
-            }
-          }
-        }
-      }
-      if (device.store) {
-        const storeKeys = Object.keys(device.store);
-        for (const key of storeKeys) {
-          if (typeof device.store[key] === 'string') {
-            const value = device.store[key].toLowerCase();
-            if (value.includes('light') || value.includes('lamp')) {
-              return true;
-            }
-          }
-        }
-      }
-      if (device.capabilities) {
-        if (device.capabilities.includes('dim') || device.capabilities.includes('light_hue') ||
-            device.capabilities.includes('light_saturation') || device.capabilities.includes('light_temperature')) {
-          return true;
-        }
-      }
-      return false;
-    } catch (error) {
-      return false;
-    }
-  }
-
+  /**
+   * Static helper methods
+   */
   static getCapabilityForCommand(device, command) {
-    const caps = getCapabilityKeys(device);
-    const deviceClass = device.class;
-    if (command === 'turn_on' || command === 'turn_off') {
-      if (caps.includes('onoff')) return 'onoff';
-      switch (deviceClass) {
-        case 'speaker':
-          if (caps.includes('speaker_playing')) return 'speaker_playing';
-          break;
-        case 'curtain':
-        case 'blinds':
-          if (caps.includes('windowcoverings_set')) return 'windowcoverings_set';
-          break;
-        case 'lock':
-          if (caps.includes('locked')) return 'locked';
-          break;
-        case 'thermostat':
-          return null;
-        case 'sensor':
-          return null;
-      }
-      return null;
-    }
+    const capabilities = getCapabilityKeys(device);
+    
     switch (command) {
+      case 'turn_on':
+      case 'turn_off':
+        return capabilities.find(cap => cap === 'onoff') || null;
       case 'dim':
-        if (caps.includes('dim')) return 'dim';
-        break;
+        return capabilities.find(cap => cap === 'dim') || null;
       case 'set_temperature':
-        if (caps.includes('target_temperature')) return 'target_temperature';
-        break;
-      case 'open':
-      case 'close':
-        if (caps.includes('windowcoverings_set')) return 'windowcoverings_set';
-        break;
-      case 'lock':
-      case 'unlock':
-        if (caps.includes('locked')) return 'locked';
-        break;
-      case 'speaker_next':
-        if (caps.includes('speaker_next')) return 'speaker_next';
-        break;
-      case 'speaker_prev':
-        if (caps.includes('speaker_prev')) return 'speaker_prev';
-        break;
-      case 'play_music':
-      case 'stop_music':
-        if (caps.includes('speaker_playing')) return 'speaker_playing';
-        break;
+        return capabilities.find(cap => cap === 'target_temperature') || null;
+      case 'set_volume':
+        return capabilities.find(cap => cap === 'volume_set') || null;
+      default:
+        return null;
     }
-    if (caps.includes(command)) return command;
-    return null;
   }
 
   static getValueForCommand(command, parameters = {}) {
@@ -934,28 +982,26 @@ class ChatGPTAssistant extends Homey.App {
         return true;
       case 'turn_off':
         return false;
-      case 'open':
-        return 1;
-      case 'close':
-        return 0;
-      case 'lock':
-        return true;
-      case 'unlock':
-        return false;
       case 'dim':
         return parameters.dim_level || 0.5;
       case 'set_temperature':
-        return parameters.temperature || 21;
-      case 'speaker_next':
-      case 'speaker_prev':
-        return true;
-      case 'play_music':
-        return true;
-      case 'stop_music':
-        return false;
+        return parameters.temperature || 20;
+      case 'set_volume':
+        return parameters.volume || 0.5;
       default:
-        return true;
+        return null;
     }
+  }
+
+  static isLightControllingSocket(device) {
+    // Check if socket is controlling lights based on name patterns
+    const name = device.name.toLowerCase();
+    return /light|lamp|ljus|lampa|belysning/i.test(name);
+  }
+
+  static isControllableDeviceClass(deviceClass) {
+    const controllableClasses = ['light', 'socket', 'speaker', 'tv', 'thermostat'];
+    return controllableClasses.includes(deviceClass);
   }
 }
 
