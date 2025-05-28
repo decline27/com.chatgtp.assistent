@@ -406,12 +406,21 @@ function httpGet(url, signal = null) {
         reject(error);
       });
 
-    // Handle abort signal
+    // Handle abort signal with proper cleanup
     if (signal) {
-      signal.addEventListener('abort', () => {
+      const abortHandler = () => {
         req.destroy();
         const error = ErrorHandler.timeout('Request was aborted', { url });
         reject(error);
+      };
+
+      signal.addEventListener('abort', abortHandler, { once: true });
+
+      // Clean up the listener when request completes
+      req.on('close', () => {
+        if (signal && !signal.aborted) {
+          signal.removeEventListener('abort', abortHandler);
+        }
       });
     }
   });

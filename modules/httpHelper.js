@@ -33,12 +33,13 @@ function downloadFile(fileUrl, outputPath) {
 /**
  * Downloads a file from the given URL and returns its content as a Buffer.
  * @param {string} fileUrl - The URL to download.
+ * @param {AbortSignal} signal - Optional AbortController signal for cancellation.
  * @returns {Promise<Buffer>}
  */
-function downloadBuffer(fileUrl) {
+function downloadBuffer(fileUrl, signal = null) {
   return new Promise((resolve, reject) => {
     const data = [];
-    https.get(fileUrl, response => {
+    const req = https.get(fileUrl, response => {
       if (response.statusCode !== 200) {
         reject(new Error(`Failed to download file, status: ${response.statusCode}`));
         return;
@@ -46,6 +47,23 @@ function downloadBuffer(fileUrl) {
       response.on('data', chunk => data.push(chunk));
       response.on('end', () => resolve(Buffer.concat(data)));
     }).on('error', reject);
+
+    // Handle abort signal with proper cleanup
+    if (signal) {
+      const abortHandler = () => {
+        req.destroy();
+        reject(new Error('Download was aborted'));
+      };
+
+      signal.addEventListener('abort', abortHandler, { once: true });
+
+      // Clean up the listener when request completes
+      req.on('close', () => {
+        if (signal && !signal.aborted) {
+          signal.removeEventListener('abort', abortHandler);
+        }
+      });
+    }
   });
 }
 

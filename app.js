@@ -1,7 +1,13 @@
 'use strict';
 
 const Homey = require('homey');
+const { EventTarget } = require('events');
 // Removed local https require as HTTP logic is now in httpHelper
+
+// Increase the default max listeners to prevent warnings during multi-command processing
+if (typeof EventTarget !== 'undefined' && EventTarget.setMaxListeners) {
+  EventTarget.setMaxListeners(20);
+}
 
 // Require our modules
 const { onMessage, sendMessage, getFileInfo, initBot } = require('./modules/telegram');
@@ -538,6 +544,82 @@ class ChatGPTAssistant extends Homey.App {
       return !limitedControlClasses.includes(deviceClass);
     }
 
+    // Function to detect if a socket is controlling a light based on Homey metadata only
+    function isLightControllingSocket(device) {
+      if (device.class !== 'socket') return false;
+
+      try {
+        // Debug: Log available metadata for socket devices to help users understand what's available
+        this.log(`Analyzing socket "${device.name}" for light control. Available metadata:`, {
+          settings: device.settings ? Object.keys(device.settings) : 'none',
+          data: device.data ? Object.keys(device.data) : 'none',
+          store: device.store ? Object.keys(device.store) : 'none',
+          capabilities: device.capabilities || 'none'
+        });
+        // Method 1: Check Homey device settings for user-defined purpose/category
+        if (device.settings) {
+          // Check for common settings that might indicate light control
+          const lightSettings = ['purpose', 'category', 'device_type', 'connected_device', 'usage', 'type'];
+          for (const setting of lightSettings) {
+            if (device.settings[setting]) {
+              const value = device.settings[setting].toString().toLowerCase();
+              if (value.includes('light') || value.includes('lamp') || value.includes('ljus') || value.includes('lampa')) {
+                this.log(`Socket "${device.name}" identified as light controller via settings.${setting}: ${value}`);
+                return true;
+              }
+            }
+          }
+        }
+
+        // Method 2: Check device data for metadata
+        if (device.data) {
+          // Check for device data that might indicate connected device type
+          const dataKeys = Object.keys(device.data);
+          for (const key of dataKeys) {
+            if (typeof device.data[key] === 'string') {
+              const value = device.data[key].toLowerCase();
+              if (value.includes('light') || value.includes('lamp')) {
+                this.log(`Socket "${device.name}" identified as light controller via data.${key}: ${value}`);
+                return true;
+              }
+            }
+          }
+        }
+
+        // Method 3: Check device store for app-specific metadata
+        if (device.store) {
+          const storeKeys = Object.keys(device.store);
+          for (const key of storeKeys) {
+            if (typeof device.store[key] === 'string') {
+              const value = device.store[key].toLowerCase();
+              if (value.includes('light') || value.includes('lamp')) {
+                this.log(`Socket "${device.name}" identified as light controller via store.${key}: ${value}`);
+                return true;
+              }
+            }
+          }
+        }
+
+        // Method 4: Check if device has light-related capabilities that suggest it controls lighting
+        if (device.capabilities) {
+          // Some smart sockets might have dim capability when controlling lights
+          if (device.capabilities.includes('dim') || device.capabilities.includes('light_hue') ||
+              device.capabilities.includes('light_saturation') || device.capabilities.includes('light_temperature')) {
+            this.log(`Socket "${device.name}" identified as light controller via lighting capabilities: ${device.capabilities.join(', ')}`);
+            return true;
+          }
+        }
+
+        return false;
+
+      } catch (error) {
+        this.error(`Error analyzing socket "${device.name}" for light control:`, error);
+        return false;
+      }
+    }
+
+
+
     // Enhanced capability mapping for better device support
     function getCapabilityForCommand(device, command) {
       const caps = getCapabilityKeys(device);
@@ -744,7 +826,11 @@ class ChatGPTAssistant extends Homey.App {
         // Explicit device filter specified
         const filteredDevices = targetDevices.filter(device => {
           if (jsonCommand.device_filter === 'light') {
-            return device.class === 'light';
+            // Include actual lights
+            if (device.class === 'light') return true;
+            // Include sockets that control lights based on Homey metadata or intelligent analysis
+            if (device.class === 'socket' && isLightControllingSocket(device)) return true;
+            return false;
           } if (jsonCommand.device_filter === 'speaker') {
             return device.class === 'speaker';
           } if (jsonCommand.device_filter === 'socket') {
@@ -758,6 +844,12 @@ class ChatGPTAssistant extends Homey.App {
         if (filteredDevices.length > 0) {
           this.log(`Filtering to ${jsonCommand.device_filter} devices only`);
           targetDevices = filteredDevices;
+        } else {
+          // Log what device classes we found when filtering fails
+          const availableClasses = targetDevices.map(d => `${d.name}(${d.class})`).join(', ');
+          this.log(`No ${jsonCommand.device_filter} devices found. Available: ${availableClasses}`);
+          // When explicit device filter is specified and no matching devices found, don't fall back
+          targetDevices = [];
         }
       }
       // Fallback to original smart filtering for commands without explicit filter
@@ -791,7 +883,9 @@ class ChatGPTAssistant extends Homey.App {
         }
       }
 
-      this.log(`Found ${targetDevices.length} compatible devices for command "${jsonCommand.command}"`);
+      // Log details about the devices we're about to process
+      const deviceDetails = targetDevices.map(d => `${d.name}(${d.class})`).join(', ');
+      this.log(`Found ${targetDevices.length} compatible devices for command "${jsonCommand.command}": ${deviceDetails}`);
 
       if (targetDevices.length === 0) {
         const deviceClasses = [...new Set(devices
