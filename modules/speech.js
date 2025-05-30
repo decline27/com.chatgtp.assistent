@@ -4,6 +4,7 @@ const https = require('https');
 const fs = require('fs');
 const { getKeyManager } = require('./secureKeyManager');
 const { ErrorHandler, ErrorTypes } = require('./errorHandler');
+const { getSocketSpeechContext, identifySocketDeviceType } = require('./socketDeviceMapper');
 
 // Supported languages for Whisper API (99+ languages)
 const SUPPORTED_LANGUAGES = {
@@ -169,13 +170,14 @@ function generateBoundary() {
 }
 
 /**
- * Create multipart form-data body with language support.
+ * Create multipart form-data body with language support and enhanced context.
  * @param {Buffer|string} input - Either a Buffer containing the file data or a file path to the audio file.
  * @param {string} boundary - The form-data boundary string.
  * @param {string} language - Language code for transcription (optional, defaults to auto-detection).
+ * @param {Object} devices - Available devices from Homey (optional, for enhanced context).
  * @returns {Buffer} The complete form-data as a Buffer.
  */
-function createFormData(input, boundary, language = 'auto') {
+function createFormData(input, boundary, language = 'auto', devices = null) {
   let fileContent;
   if (Buffer.isBuffer(input)) {
     fileContent = input;
@@ -212,20 +214,35 @@ function createFormData(input, boundary, language = 'auto') {
     'verbose_json\r\n'
   );
 
+  // Add enhanced prompt with context for socket devices if available
+  if (devices) {
+    const socketContext = getSocketSpeechContext(devices, language);
+    if (socketContext && socketContext.length > 0) {
+      // Create context prompt for better recognition of appliances and devices
+      const contextPrompt = `Smart home devices: ${socketContext.slice(0, 20).join(', ')}`;
+      parts.push(
+        `--${boundary}\r\n`,
+        'Content-Disposition: form-data; name="prompt"\r\n\r\n',
+        `${contextPrompt}\r\n`
+      );
+    }
+  }
+
   parts.push(`--${boundary}--\r\n`);
 
   return Buffer.concat(parts.map(part => (typeof part === 'string' ? Buffer.from(part) : part)));
 }
 
 /**
- * Transcribes audio input using OpenAI's Whisper API with multilingual support.
+ * Transcribes audio input using OpenAI's Whisper API with multilingual support and enhanced device context.
  * The input can be either a Buffer or a file path (string).
  *
  * @param {Buffer|string} input - The audio data or path to the audio file.
  * @param {string} language - Language code for transcription (optional, defaults to auto-detection).
+ * @param {Object} devices - Available devices from Homey (optional, for enhanced context).
  * @returns {Promise<Object>} - A promise that resolves to transcription result with text and detected language.
  */
-async function transcribeVoice(input, language = 'auto') {
+async function transcribeVoice(input, language = 'auto', devices = null) {
   // Input validation
   ErrorHandler.validateInput(input, 'Audio input is required');
   ErrorHandler.validateInput(language && typeof language === 'string', 'Language must be a string');
@@ -235,16 +252,12 @@ async function transcribeVoice(input, language = 'auto') {
     throw ErrorHandler.authentication('Whisper API key not initialized. Call initWhisper first.');
   }
 
-  // Validate language code
-  if (language !== 'auto' && !SUPPORTED_LANGUAGES[language]) {
-    console.warn(`Unsupported language code: ${language}. Falling back to auto-detection.`);
-    language = 'auto';
-  }
+
 
   return new Promise((resolve, reject) => {
     try {
       const boundary = generateBoundary();
-      const formData = createFormData(input, boundary, language);
+      const formData = createFormData(input, boundary, language, devices);
 
       // Create secure authorization header
       const authHeader = keyManager.createAuthHeader('openai', 'Bearer');
@@ -330,51 +343,11 @@ function isLanguageSupported(languageCode) {
   return languageCode === 'auto' || SUPPORTED_LANGUAGES.hasOwnProperty(languageCode);
 }
 
-/**
- * Detect language from text (simple heuristic-based detection).
- * This is a fallback for when Whisper doesn't return language info.
- * @param {string} text - The text to analyze.
- * @returns {string} Detected language code.
- */
-function detectLanguageFromText(text) {
-  if (!text || text.trim().length === 0) {
-    return 'en'; // Default to English
-  }
 
-  const lowerText = text.toLowerCase();
-
-  // Simple keyword-based detection for common languages
-  const languagePatterns = {
-    'es': ['encender', 'apagar', 'luz', 'luces', 'temperatura', 'música', 'puerta', 'ventana'],
-    'fr': ['allumer', 'éteindre', 'lumière', 'lumières', 'température', 'musique', 'porte', 'fenêtre'],
-    'de': ['einschalten', 'ausschalten', 'licht', 'lichter', 'temperatur', 'musik', 'tür', 'fenster'],
-    'it': ['accendere', 'spegnere', 'luce', 'luci', 'temperatura', 'musica', 'porta', 'finestra'],
-    'pt': ['ligar', 'desligar', 'luz', 'luzes', 'temperatura', 'música', 'porta', 'janela'],
-    'nl': ['aanzetten', 'uitzetten', 'licht', 'lichten', 'temperatuur', 'muziek', 'deur', 'raam'],
-    'sv': ['sätta på', 'stänga av', 'ljus', 'temperatur', 'musik', 'dörr', 'fönster', 'vardagsrum'],
-    'ru': ['включить', 'выключить', 'свет', 'температура', 'музыка', 'дверь', 'окно'],
-    'zh': ['打开', '关闭', '灯', '温度', '音乐', '门', '窗户'],
-    'ja': ['つける', '消す', 'ライト', '温度', '音楽', 'ドア', '窓'],
-    'ar': ['تشغيل', 'إطفاء', 'ضوء', 'درجة الحرارة', 'موسيقى', 'باب', 'نافذة']
-  };
-
-  // Check for language-specific patterns
-  for (const [lang, patterns] of Object.entries(languagePatterns)) {
-    for (const pattern of patterns) {
-      if (lowerText.includes(pattern)) {
-        return lang;
-      }
-    }
-  }
-
-  // Default to English if no patterns match
-  return 'en';
-}
 
 module.exports = {
   transcribeVoice,
   initWhisper,
   getSupportedLanguages,
-  isLanguageSupported,
-  detectLanguageFromText
+  isLanguageSupported
 };

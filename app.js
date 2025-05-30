@@ -28,6 +28,7 @@ const { constructPrompt } = require('./modules/chatgptHelper');
 const { preprocessCommand, suggestImprovement } = require('./modules/commandProcessor');
 const { handleStatusQuery } = require('./modules/statusQueryHandler');
 const { initializeKeys } = require('./modules/secureKeyManager');
+const { normalizeRoomNameAdvanced } = require('./modules/multilingualProcessor');
 
 // Removed redundant downloadFile helper from app.js
 
@@ -675,89 +676,94 @@ class ChatGPTAssistant extends Homey.App {
    * Refactored: Handles Homey commands for a room.
    */
   async handleRoomCommand(jsonCommand) {
+    // Check if room name is provided
+    if (!jsonCommand.room) {
+      this.log('No room name provided in jsonCommand for LLM matching.');
+      throw new Error('No room name specified in the command.');
+    }
+
     const homeState = await this.getHomeState();
     const zones = homeState.zones;
+    const availableRooms = Object.values(zones).map(z => z.name);
+    const language = this.lastDetectedLanguage || 'en';
 
-    // Enhanced room matching with fuzzy logic
+    // Log the attempt for debugging
+    this.log(`Attempting to normalize room: ${jsonCommand.room}, Language: ${language}, Available rooms: ${availableRooms.join(', ')}`);
+
+    let normalizedRoomName;
+    try {
+      // Create a simple LLM function for room normalization
+      const simpleLLMFunction = this.chatgpt?.parseCommand ? async (prompt) => {
+        try {
+          const result = await this.chatgpt.parseCommand(prompt);
+          // Extract simple room name from result - handle both string and object responses
+          if (typeof result === 'string') {
+            return result === 'null' ? null : result;
+          } else if (result && typeof result === 'object' && result.room) {
+            return result.room;
+          } else if (result && typeof result === 'object' && result.error) {
+            return null;
+          }
+          return null;
+        } catch (error) {
+          this.error('LLM room normalization error:', error);
+          return null;
+        }
+      } : null;
+
+      // Use advanced room matching with LLM integration
+      normalizedRoomName = await normalizeRoomNameAdvanced(
+        jsonCommand.room,
+        language,
+        availableRooms,
+        simpleLLMFunction
+      );
+      
+      if (normalizedRoomName && normalizedRoomName.toLowerCase() !== jsonCommand.room.toLowerCase()) {
+        this.log(`LLM Normalized room name: "${jsonCommand.room}" -> "${normalizedRoomName}"`);
+      } else if (!normalizedRoomName) {
+        this.log(`LLM could not normalize room name: "${jsonCommand.room}".`);
+      }
+    } catch (error) {
+      this.error('Error during advanced room name normalization:', error);
+      normalizedRoomName = null;
+    }
+
+    // Find matching zones based on normalized room name
     const targetZoneIds = Object.keys(zones).filter(zoneId => {
       const zoneName = zones[zoneId].name.toLowerCase();
-      const roomQuery = jsonCommand.room.toLowerCase();
-
-      // Exact match
-      if (zoneName === roomQuery) return true;
-
-      // Contains match
-      if (zoneName.includes(roomQuery) || roomQuery.includes(zoneName)) return true;
-
-      // Enhanced multilingual translations
-      const translations = {
-        'vardagsrum': ['living room', 'lounge', 'livingroom'],
-        'vardagsrummet': ['living room', 'lounge', 'livingroom'],
-        'sovrum': ['bedroom', 'bed room'],
-        'sovrummet': ['bedroom', 'bed room'],
-        'kök': ['kitchen'],
-        'köket': ['kitchen'],
-        'badrum': ['bathroom', 'bath room'],
-        'badrummet': ['bathroom', 'bath room'],
-        'hall': ['hallway', 'entrance'],
-        'hallen': ['hallway', 'entrance'],
-        'kontor': ['office', 'study'],
-        'kontoret': ['office', 'study'],
-        'trädgård': ['garden', 'yard', 'trägården'],
-        'trädgården': ['garden', 'yard', 'trägården'],
-        'garden': ['trädgård', 'trädgården', 'yard'],
-        // Spanish
-        'sala de estar': ['living room', 'lounge'],
-        'dormitorio': ['bedroom'],
-        'cocina': ['kitchen'],
-        'baño': ['bathroom'],
-        'oficina': ['office'],
-        // French
-        'salon': ['living room', 'lounge'],
-        'chambre': ['bedroom'],
-        'cuisine': ['kitchen'],
-        'salle de bain': ['bathroom'],
-        'bureau': ['office'],
-        // German
-        'wohnzimmer': ['living room', 'lounge'],
-        'schlafzimmer': ['bedroom'],
-        'küche': ['kitchen'],
-        'badezimmer': ['bathroom'],
-        'büro': ['office'],
-        // Italian
-        'soggiorno': ['living room', 'lounge'],
-        'camera da letto': ['bedroom'],
-        'cucina': ['kitchen'],
-        'bagno': ['bathroom'],
-        'ufficio': ['office']
-      };
-
-      for (const [foreignWord, englishWords] of Object.entries(translations)) {
-        // Check if room query is in foreign language and zone name is in English
-        if (roomQuery.includes(foreignWord.toLowerCase())
-            && englishWords.some(e => zoneName.includes(e.toLowerCase()))) {
+      
+      if (normalizedRoomName) {
+        // Check if normalized name matches zone name (case-insensitive)
+        if (zoneName === normalizedRoomName.toLowerCase()) {
           return true;
         }
-        // Check if zone name is in foreign language and room query is in English
-        if (zoneName.includes(foreignWord.toLowerCase())
-            && englishWords.some(e => roomQuery.includes(e.toLowerCase()))) {
-          return true;
-        }
-        // Check if both are in English but different variations
-        if (englishWords.some(e => roomQuery.includes(e.toLowerCase()))
-            && englishWords.some(e => zoneName.includes(e.toLowerCase()))) {
+        // Check if normalized name is contained in zone name or vice versa
+        if (zoneName.includes(normalizedRoomName.toLowerCase()) || 
+            normalizedRoomName.toLowerCase().includes(zoneName)) {
           return true;
         }
       }
-
+      
       return false;
     });
+
+    // If normalized name doesn't match any zones but was returned by LLM, log warning
+    if (normalizedRoomName && targetZoneIds.length === 0) {
+      // Check if the normalized name exists in available rooms but doesn't match zones
+      const matchedAvailableRoom = availableRooms.find(room => 
+        room.toLowerCase() === normalizedRoomName.toLowerCase()
+      );
+      if (matchedAvailableRoom || normalizedRoomName) {
+        this.log(`Warning: Matched room name "${normalizedRoomName}" not found in available zones.`);
+      }
+    }
 
     this.log(`Room matching: "${jsonCommand.room}" -> zones:`, targetZoneIds.map(id => zones[id].name));
 
     if (targetZoneIds.length === 0) {
-      const availableRooms = Object.values(zones).map(z => z.name).join(', ');
-      throw new Error(`No room matching "${jsonCommand.room}" found. Available rooms: ${availableRooms}`);
+      const availableRoomsStr = availableRooms.join(', ');
+      throw new Error(`No room matching "${jsonCommand.room}" found after LLM attempt. Available rooms: ${availableRoomsStr}`);
     }
 
     const devicesObj = await this.getDevicesMapping();
@@ -771,57 +777,96 @@ class ChatGPTAssistant extends Homey.App {
 
     // Enhanced smart filtering based on command context and device_filter
     if (jsonCommand.device_filter) {
-      // Explicit device filter specified
-      const filteredDevices = targetDevices.filter(device => {
-        if (jsonCommand.device_filter === 'light') {
-          // Include actual lights
-          if (device.class === 'light') return true;
-          // Include sockets that control lights based on Homey metadata or intelligent analysis
-          if (device.class === 'socket' && ChatGPTAssistant.isLightControllingSocket(device)) return true;
-          return false;
-        } else if (jsonCommand.device_filter === 'socket') {
-          // Only sockets, not lights
-          return device.class === 'socket' && !ChatGPTAssistant.isLightControllingSocket(device);
-        } else if (jsonCommand.device_filter === 'speaker') {
-          return device.class === 'speaker';
-        } else if (jsonCommand.device_filter === 'thermostat') {
-          return device.class === 'thermostat';
+      const filterType = jsonCommand.device_filter.toLowerCase();
+      this.log(`Applying explicit device_filter: "${filterType}"`);
+      
+      const originalTargetDevicesLength = targetDevices.length;
+
+      targetDevices = targetDevices.filter(device => {
+        if (filterType === 'socket') {
+          // If filter is "socket", we want devices that are sockets AND are not identified as a more specific type.
+          if (device.class === 'socket') {
+            const specificType = ChatGPTAssistant.getSocketDeviceType(device);
+            // It's a "pure" socket if it's of class 'socket' and not identified as a more specific type (or typed as 'socket' itself).
+            return !specificType || specificType === 'socket'; 
+          }
+          return false; // Not a socket class, so doesn't match filter 'socket'
         }
-        return device.class === jsonCommand.device_filter;
+        
+        // For other filter types (e.g., "light", "fan")
+        // Direct class match
+        if (device.class === filterType) return true;
+        // Socket controlling the specified type
+        if (device.class === 'socket' && ChatGPTAssistant.isSocketOfType(device, filterType)) return true;
+        
+        return false;
       });
 
-      if (filteredDevices.length > 0) {
-        this.log(`Filtering to ${jsonCommand.device_filter} devices only`);
-        targetDevices = filteredDevices;
+      if (targetDevices.length > 0) {
+        this.log(`Filtered to ${filterType} devices. Found ${targetDevices.length} from ${originalTargetDevicesLength}.`);
       } else {
         // Log what device classes we found when filtering fails
-        const availableClasses = targetDevices.map(d => `${d.name}(${d.class})`).join(', ');
-        this.log(`No ${jsonCommand.device_filter} devices found. Available: ${availableClasses}`);
-        // When explicit device filter is specified and no matching devices found, don't fall back
-        targetDevices = [];
+        const availableClassesInRoom = [...new Set(devices.filter(d => targetZoneIds.includes(d.zone)).map(d => d.class))].join(', ');
+        this.log(`No devices matching filter "${filterType}" found in "${normalizedRoomName || jsonCommand.room}". Devices considered: ${originalTargetDevicesLength}, their classes in room: ${availableClassesInRoom}.`);
+        // When explicit device filter is specified and no matching devices found, targetDevices remains empty.
       }
     }
-    // Fallback to original smart filtering for commands without explicit filter
+    // Enhanced smart filtering for commands without explicit filter
     else if (jsonCommand.command === 'turn_on' || jsonCommand.command === 'turn_off') {
       // Get the original command text from the preprocessing
       const originalCommand = this.lastProcessedCommand || '';
+      
+      // Check for specific appliance mentions in the command
+      const { identifySocketDeviceType } = require('./modules/socketDeviceMapper');
+      const mentionedDeviceType = identifySocketDeviceType(originalCommand); // Returns type like 'fan', 'light', or null
+      
+      if (mentionedDeviceType) {
+        // User mentioned a specific appliance - filter to that type (native or socket-controlled)
+        const originalTargetCount = targetDevices.length;
+        targetDevices = targetDevices.filter(device => {
+          if (device.class === mentionedDeviceType) return true; // Native device of that type
+          if (device.class === 'socket' && ChatGPTAssistant.isSocketOfType(device, mentionedDeviceType)) return true; // Socket controlling that type
+          return false;
+        });
+        
+        if (targetDevices.length > 0) {
+          this.log(`Filtering to ${mentionedDeviceType} devices based on command: "${originalCommand}". Found ${targetDevices.length} from ${originalTargetCount}.`);
+        } else {
+           this.log(`Command mentioned "${mentionedDeviceType}", but no direct matches or controlling sockets found after initial filtering. Original count: ${originalTargetCount}`);
+        }
+      }
       // If the original command mentions lights/lamps specifically, filter to lights only
-      if (/light|lights|lamp|lamps|ljus|lampa|lampor|ligt|ligts|belysning/i.test(originalCommand)) {
+      else if (/light|lights|lamp|lamps|ljus|lampa|lampor|ligt|ligts|belysning/i.test(originalCommand)) {
         const lightDevices = targetDevices.filter(device => device.class === 'light' || (device.class === 'socket' && ChatGPTAssistant.isLightControllingSocket(device)));
         if (lightDevices.length > 0) {
-          this.log(`Filtering to lights only based on command: "${originalCommand}"`);
+          this.log(`Filtering to lights only based on command: \\"${originalCommand}\\"`);
           targetDevices = lightDevices;
         }
       }
+      // Check for category mentions (kitchen, entertainment, etc.)
+      else if (/kitchen|cook|appliance/i.test(originalCommand)) {
+        const kitchenDevices = targetDevices.filter(device => {
+          if (device.class === 'socket') {
+            return ChatGPTAssistant.isSocketOfCategory(device, 'kitchen');
+          }
+          return false;
+        });
+        
+        if (kitchenDevices.length > 0) {
+          this.log(`Filtering to kitchen appliances based on command: "${originalCommand}"`);
+          targetDevices = kitchenDevices;
+        }
+      }
       // If no specific device type mentioned, but it's a generic room command, prefer lights (including sockets controlling lights)
+      // This is the key change: ensure sockets controlling lights are included here for action requests
       else if (!/socket|speaker|tv|camera|lock|sensor|thermostat/i.test(originalCommand)) {
         const lightDevices = targetDevices.filter(device => device.class === 'light' || (device.class === 'socket' && ChatGPTAssistant.isLightControllingSocket(device)));
-        const controllableDevices = targetDevices.filter(device => ChatGPTAssistant.isControllableDeviceClass(device.class));
+        const controllableDevices = targetDevices.filter(device => ChatGPTAssistant.isControllableDeviceClass(device.class) || (device.class === 'socket' && ChatGPTAssistant.isLightControllingSocket(device)));
         if (lightDevices.length > 0 && lightDevices.length >= controllableDevices.length * 0.3) {
-          this.log(`Preferring lights for generic room command: "${originalCommand}"`);
+          this.log(`Preferring lights for generic room command: \"${originalCommand}\"`);
           targetDevices = lightDevices;
         } else {
-          this.log(`Using controllable devices for generic room command: "${originalCommand}"`);
+          this.log(`Using controllable devices (including light-sockets) for generic room command: \"${originalCommand}\"`);
           targetDevices = controllableDevices;
         }
       }
@@ -994,9 +1039,60 @@ class ChatGPTAssistant extends Homey.App {
   }
 
   static isLightControllingSocket(device) {
-    // Check if socket is controlling lights based on name patterns
-    const name = device.name.toLowerCase();
-    return /light|lamp|ljus|lampa|belysning/i.test(name);
+    // This function now delegates to the more generic isSocketOfType.
+    // It checks if Homey or name-based parsing identifies the socket as controlling a 'light'.
+    return ChatGPTAssistant.isSocketOfType(device, 'light');
+  }
+
+  static getSocketDeviceType(device) {
+    // Identify what type of device is connected to a socket
+    if (device.class !== 'socket') {
+      return null;
+    }
+
+    // 1. Prioritize Homey's own classification if available.
+    //    IMPORTANT: User needs to confirm the actual property name(s) from Homey's API
+    //    that indicates what's plugged into the socket (e.g., from 'choose_slave' selection).
+    //    Examples: device.settings.virtualClass, device.virtualClass, 
+    //              device.capabilitiesOptions.some_capability_id.chosen_virtual_type,
+    //              or a property derived from the device's driver manifest if it uses 'allowedVirtual'.
+    //    The value should be a string like 'light', 'fan', 'heater'.
+    const homeyDeviceType = device.settings?.virtualClass || device.virtualClass; // Using placeholder names, VERIFY THESE
+    if (homeyDeviceType && typeof homeyDeviceType === 'string' && homeyDeviceType.length > 0) {
+      // Consider logging this discovery in the calling function if detailed debugging is needed.
+      // E.g., this.log(`Socket "${device.name}" identified as "${homeyDeviceType}" by Homey property.`);
+      return homeyDeviceType.toLowerCase();
+    }
+    
+    // 2. Fallback to name-based identification from socketDeviceMapper.js
+    const { identifySocketDeviceType } = require('./modules/socketDeviceMapper');
+    const nameBasedType = identifySocketDeviceType(device.name); // identifySocketDeviceType should return lowercase or null
+    if (nameBasedType) {
+      // E.g., this.log(`Socket "${device.name}" identified as "${nameBasedType}" by name.`);
+      return nameBasedType;
+    }
+
+    return null; // No type could be determined
+  }
+
+  static isSocketOfType(device, targetType) {
+    // Check if socket is controlling a specific type of device
+    if (device.class !== 'socket' || !targetType || typeof targetType !== 'string') {
+      return false;
+    }
+    
+    const deviceType = ChatGPTAssistant.getSocketDeviceType(device); // Returns lowercase type or null
+    return deviceType === targetType.toLowerCase();
+  }
+
+  static isSocketOfCategory(device, targetCategory) {
+    // Check if socket is controlling a device of a specific category
+    if (device.class !== 'socket') {
+      return false;
+    }
+    
+    const category = ChatGPTAssistant.getSocketDeviceCategory(device);
+    return category === targetCategory;
   }
 
   static isControllableDeviceClass(deviceClass) {

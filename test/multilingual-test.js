@@ -14,7 +14,6 @@ const {
 } = require('../modules/multilingualProcessor');
 
 const { preprocessCommand } = require('../modules/commandProcessor');
-const { detectLanguageFromText } = require('../modules/speech');
 
 // Test cases for different languages
 const multilingualTestCases = [
@@ -445,43 +444,7 @@ function runMixedLanguageTests() {
   return { totalTests, passedTests, failedTests };
 }
 
-function runLanguageDetectionTests() {
-  console.log('\n🔍 Running Language Detection Tests\n');
 
-  const detectionTestCases = [
-    { text: 'Turn on the lights', expected: 'en' },
-    { text: 'Encender las luces', expected: 'es' },
-    { text: 'Allumer les lumières', expected: 'fr' },
-    { text: 'Licht einschalten', expected: 'de' },
-    { text: 'Accendere le luci', expected: 'it' },
-    { text: 'Ligar as luzes', expected: 'pt' },
-    { text: 'Lichten aanzetten', expected: 'nl' },
-    { text: 'Sätt på ljuset', expected: 'sv' }
-  ];
-
-  let totalTests = 0;
-  let passedTests = 0;
-  let failedTests = 0;
-
-  detectionTestCases.forEach(testCase => {
-    totalTests++;
-    console.log(`Test: "${testCase.text}"`);
-
-    const detected = detectLanguageFromText(testCase.text);
-    const match = detected === testCase.expected;
-
-    console.log(`  Detected: ${detected}, Expected: ${testCase.expected} ${match ? '✅' : '❌'}`);
-
-    if (match) {
-      passedTests++;
-    } else {
-      failedTests++;
-    }
-  });
-
-  console.log(`\n📊 Language Detection Test Results: ${passedTests}/${totalTests} passed (${failedTests} failed)`);
-  return { totalTests, passedTests, failedTests };
-}
 
 function runIntegrationTests() {
   console.log('\n🔧 Running Integration Tests\n');
@@ -549,7 +512,6 @@ if (require.main === module) {
     multilingual: runMultilingualTests(),
     multiCommand: runMultiCommandTests(),
     mixedLanguage: runMixedLanguageTests(),
-    languageDetection: runLanguageDetectionTests(),
     integration: runIntegrationTests()
   };
 
@@ -575,14 +537,13 @@ if (require.main === module) {
   console.log('✅ English, Spanish, French, German, Italian, Portuguese, Dutch, Swedish');
   console.log('✅ Mixed language commands');
   console.log('✅ Multi-command processing');
-  console.log('✅ Automatic language detection');
+  console.log('✅ Whisper API language detection');
 }
 
 module.exports = {
   runMultilingualTests,
   runMultiCommandTests,
   runMixedLanguageTests,
-  runLanguageDetectionTests,
   runIntegrationTests,
   multilingualTestCases,
   multiCommandTestCases,

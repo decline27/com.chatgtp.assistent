@@ -6,6 +6,7 @@
  */
 
 const { comprehensiveRoomMatch } = require('./advancedMultilingualMatcher');
+const { getSocketDescription, identifySocketDeviceType, SOCKET_CONNECTED_DEVICES } = require('./socketDeviceMapper');
 
 /**
  * Get current capability value from a device
@@ -107,6 +108,65 @@ function generateDeviceSummary(device, capabilities) {
       }
       if (capabilities.measure_power !== undefined) {
         parts.push(`${capabilities.measure_power}W`);
+      }
+      
+      // Enhanced socket device identification using comprehensive mapper
+      const connectedDevice = identifySocketDeviceType(device.name);
+      if (connectedDevice && SOCKET_CONNECTED_DEVICES[connectedDevice]) {
+        const deviceData = SOCKET_CONNECTED_DEVICES[connectedDevice];
+        const category = deviceData.category;
+        
+        // Get first vocabulary term for the device in current language
+        const deviceTerms = deviceData.multilingual['en'] || [];
+        const deviceTerm = deviceTerms[0] || connectedDevice;
+        
+        // Create more descriptive status based on category and device type
+        switch (category) {
+          case 'lighting':
+            parts.push(`(controlling ${deviceTerm})`);
+            break;
+          case 'kitchen':
+            parts.push(`(controlling ${deviceTerm} - kitchen appliance)`);
+            break;
+          case 'entertainment':
+            parts.push(`(controlling ${deviceTerm} - entertainment device)`);
+            break;
+          case 'climate':
+            parts.push(`(controlling ${deviceTerm} - climate control)`);
+            break;
+          case 'laundry':
+            parts.push(`(controlling ${deviceTerm} - laundry appliance)`);
+            break;
+          case 'utility':
+            parts.push(`(controlling ${deviceTerm} - utility device)`);
+            break;
+          default:
+            parts.push(`(controlling ${deviceTerm})`);
+        }
+        
+        // Add power usage context for appliances
+        if (capabilities.measure_power !== undefined && capabilities.onoff) {
+          const powerUsage = capabilities.measure_power;
+          if (powerUsage > 100) {
+            parts.push('(high power usage)');
+          } else if (powerUsage > 10) {
+            parts.push('(moderate power usage)');
+          } else if (powerUsage > 0) {
+            parts.push('(low power usage)');
+          }
+        }
+      } else {
+        // Fallback for unidentified sockets - check for common device type patterns
+        const name = device.name.toLowerCase();
+        if (/light|lamp|ljus|lampa|belysning/i.test(name)) {
+          parts.push('(controlling lighting device)');
+        } else if (/tv|television|fernseher/i.test(name)) {
+          parts.push('(controlling TV/entertainment device)');
+        } else if (/speaker|audio|musik|ljud/i.test(name)) {
+          parts.push('(controlling audio device)');
+        } else {
+          parts.push('(smart plug)');
+        }
       }
       break;
 
@@ -267,7 +327,7 @@ async function getRoomStatus(roomName, availableRooms, devices, zones, language 
 async function getDeviceTypeStatus(deviceType, devices, zones = null, roomFilter = null, language = 'en', llmFunction = null) {
   const deviceArray = Object.values(devices);
 
-  // Filter by device type (class) - improved matching
+  // Filter by device type (class) - improved matching with socket integration
   let filteredDevices = deviceArray.filter(device => {
     if (!device.class) return false;
 
@@ -276,6 +336,34 @@ async function getDeviceTypeStatus(deviceType, devices, zones = null, roomFilter
 
     // Exact match first
     if (deviceClass === targetType) return true;
+
+    // Enhanced socket integration: Include sockets controlling the target device type
+    if (deviceClass === 'socket') {
+      // Use socket device mapper to identify what the socket controls
+      const connectedDeviceType = identifySocketDeviceType(device.name);
+      if (connectedDeviceType === targetType) {
+        return true;
+      }
+      
+      // Additional socket filtering based on target type
+      if (targetType === 'light') {
+        // Check if socket is controlling lights using name patterns
+        const name = device.name.toLowerCase();
+        if (/light|lamp|ljus|lampa|belysning/i.test(name)) {
+          return true;
+        }
+      } else if (targetType === 'speaker') {
+        // Include sockets controlling media players/speakers
+        if (connectedDeviceType === 'mediaplayer') {
+          return true;
+        }
+      } else if (targetType === 'tv') {
+        // Include sockets controlling TVs or media devices
+        if (connectedDeviceType === 'tv' || connectedDeviceType === 'mediaplayer') {
+          return true;
+        }
+      }
+    }
 
     // Partial match for common variations
     if (deviceClass.includes(targetType) || targetType.includes(deviceClass)) return true;

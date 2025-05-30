@@ -101,8 +101,11 @@ module.exports = function initTelegramListener(app) {
         // Use helper method to download file data as Buffer
         const buffer = await app.downloadBuffer(fileUrl);
 
-        // Transcribe the voice message with multilingual support
-        const transcriptionResult = await app.transcribeVoice(buffer);
+        // Get devices for enhanced speech recognition context
+        const devices = await app.getDevicesMapping();
+
+        // Transcribe the voice message with multilingual support and device context
+        const transcriptionResult = await app.transcribeVoice(buffer, 'auto', devices);
         app.log(`Voice transcription result:`, transcriptionResult);
 
         // Handle both old string format and new object format for backward compatibility
@@ -113,11 +116,7 @@ module.exports = function initTelegramListener(app) {
           commandText = transcriptionResult.text;
           detectedLanguage = transcriptionResult.language || 'en';
 
-          // Log language detection
-          if (detectedLanguage !== 'en') {
-            app.log(`Detected language: ${detectedLanguage}`);
-            await app.telegram.sendMessage(chatId, `🌍 Detected language: ${detectedLanguage.toUpperCase()}`);
-          }
+
         } else {
           commandText = '';
         }

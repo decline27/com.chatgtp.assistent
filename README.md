@@ -48,6 +48,32 @@ The assistant understands various command types:
 - Status queries: "What's the temperature in the kitchen?"
 - Multiple device commands: "Turn on all lights in the house"
 
+### Smart Socket Integration
+
+The assistant features intelligent socket integration that automatically recognizes what devices are connected to smart sockets:
+
+**Automatic Device Recognition:**
+- Lamp sockets are included when you say "turn on lights"
+- TV/media sockets respond to entertainment commands
+- Kitchen appliance sockets are recognized for cooking commands
+- Climate control sockets work with heating/cooling commands
+
+**Supported Socket Categories:**
+- **Lighting**: Table lamps, reading lights, floor lamps
+- **Entertainment**: TVs, sound systems, media players
+- **Kitchen Appliances**: Coffee machines, microwaves, toasters, dishwashers
+- **Climate Control**: Fans, heaters, air conditioning
+- **Laundry**: Washing machines, dryers
+
+**Example Commands:**
+- "Turn on the lights" → Controls both ceiling lights AND table lamps (via sockets)
+- "What lights are on?" → Shows both traditional lights and lamp sockets
+- "Start the coffee machine" → Finds and controls coffee machine socket
+- "Turn on entertainment devices" → Controls TVs and sound systems via sockets
+
+**Multilingual Support:**
+Socket recognition works in multiple languages with vocabulary for device names in English, Swedish, German, Spanish, and French.
+
 ## Architecture
 
 The app consists of several key components:

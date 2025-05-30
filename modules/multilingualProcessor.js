@@ -5,6 +5,8 @@
  * Handles natural language understanding across multiple languages
  */
 
+const { getSocketDeviceVocabulary, SOCKET_CONNECTED_DEVICES } = require('./socketDeviceMapper');
+
 // Multilingual room name mappings
 const ROOM_TRANSLATIONS = {
   'en': {
@@ -312,6 +314,31 @@ const DEVICE_TRANSLATIONS = {
     'socket': ['uttag', 'eluttag', 'kontakt']
   }
 };
+
+/**
+ * Get enhanced device translations including socket-connected devices
+ * @param {string} language - Language code
+ * @returns {Object} Enhanced device translations for the language
+ */
+function getEnhancedDeviceTranslations(language = 'en') {
+  const baseTranslations = DEVICE_TRANSLATIONS[language] || {};
+  const enhancedTranslations = { ...baseTranslations };
+  
+  // Add socket-connected device vocabulary from socketDeviceMapper
+  for (const [deviceType, deviceData] of Object.entries(SOCKET_CONNECTED_DEVICES)) {
+    const terms = deviceData.multilingual[language] || [];
+    if (terms.length > 0) {
+      // If device type already exists, merge the terms
+      if (enhancedTranslations[deviceType]) {
+        enhancedTranslations[deviceType] = [...new Set([...enhancedTranslations[deviceType], ...terms])];
+      } else {
+        enhancedTranslations[deviceType] = terms;
+      }
+    }
+  }
+  
+  return enhancedTranslations;
+}
 
 // Import advanced matching capabilities
 const {
@@ -783,5 +810,6 @@ module.exports = {
   processMultilingualCommand,
   extractRoomsFromText,
   extractActionsFromText,
-  extractDeviceTypesFromText
+  extractDeviceTypesFromText,
+  getEnhancedDeviceTranslations
 };

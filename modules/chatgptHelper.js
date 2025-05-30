@@ -36,9 +36,9 @@ function constructPrompt(commandText, homeState, options = {}) {
       'description': 'Lighting devices that can be turned on/off and often dimmed'
     },
     'socket': {
-      'capabilities': ['onoff'],
+      'capabilities': ['onoff', 'measure_power'],
       'common_commands': ['turn_on', 'turn_off'],
-      'description': 'Power outlets and smart plugs'
+      'description': 'Smart plugs and power outlets - may control lights, appliances, or other devices'
     },
     'speaker': {
       'capabilities': ['speaker_playing', 'speaker_next', 'speaker_prev', 'volume_set'],
@@ -122,10 +122,16 @@ function buildFullPrompt(commandText, summary, totalDevices, includedDevices) {
   const deviceLimitNote = totalDevices > includedDevices ?
     `\n\nNOTE: Showing ${includedDevices} of ${totalDevices} total devices for brevity.` : '';
 
+  // Add socket device vocabulary for better appliance recognition
+  const { getSocketDeviceVocabulary } = require('./socketDeviceMapper');
+  const socketVocabulary = getSocketDeviceVocabulary('en').slice(0, 20); // Limit to avoid prompt bloat
+  const socketDeviceNote = socketVocabulary.length > 0 ? 
+    `\n\nSOCKET DEVICE TYPES: Common appliances that may be connected to sockets include: ${socketVocabulary.join(', ')}. When users mention these devices, consider matching them to sockets with similar names.` : '';
+
   return `You are a Homey home automation expert with multilingual support. Convert this natural language command into valid JSON.
 
 AVAILABLE DEVICES AND ROOMS:
-${JSON.stringify(summary, null, 2)}${deviceLimitNote}
+${JSON.stringify(summary, null, 2)}${deviceLimitNote}${socketDeviceNote}
 
 COMMAND TO PROCESS: "${commandText}"
 
@@ -140,10 +146,12 @@ RESPONSE RULES:
 3. For MULTIPLE commands (with "and", "then", etc.), use:
    - Multi-command: {"commands": [{"room": "<room>", "command": "<action>", "device_filter": "<type>"}, ...]}
 
-4. DEVICE FILTERS (CRITICAL for Swedish commands):
+4. DEVICE FILTERS (CRITICAL for appliance commands):
    - ALWAYS add "device_filter": "light" when command mentions lights/ljus/lampa
    - Swedish "ljus" = English "light" → MUST use "device_filter": "light"
    - Swedish "lampor" = English "lights" → MUST use "device_filter": "light"
+   - For appliances: Use "device_filter": "socket" for generic socket control
+   - For specific categories: Use "device_filter": "kitchen", "appliance", etc.
 
 5. For STATUS queries, use:
    - Room status: {"query_type": "status", "room": "<room_name>"}
